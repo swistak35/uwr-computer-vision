@@ -22,8 +22,8 @@ import math
 def readPoints(filename,flag):
     points = []
     f = open(filename,'r')
-    for line in f:    
-        line = line.split() # to deal with blank 
+    for line in f:
+        line = line.split() # to deal with blank
         if line:            # lines (ie skip them)
             if flag == 'int':
                 line = [int(i) for i in line]
@@ -31,13 +31,19 @@ def readPoints(filename,flag):
                 line = [float(i) for i in line]
             points.append(line)
     return points
-    
-pts2AN = readPoints("data/task2/pts2d-norm-pic_a.txt","float")
-pts3DN = readPoints("data/task2/pts3d-norm.txt","float")        
-        
-pts2A = readPoints("data/task2/pts2d-pic_a.txt","int")
-pts2B = readPoints("data/task2/pts2d-pic_b.txt","int")
-pts3D = readPoints("data/task2/pts3d.txt","float")
+
+pts2AN = readPoints("data/task12/pts2d-norm-pic_a.txt","float")
+pts3DN = readPoints("data/task12/pts3d-norm.txt","float")
+
+pts2A = readPoints("data/task12/pts2d-pic_a.txt","int")
+pts2B = readPoints("data/task12/pts2d-pic_b.txt","int")
+pts3D = readPoints("data/task12/pts3d.txt","float")
+
+resultOfTask1 = np.array([
+    [-0.4583, 0.2947, 0.0139, -0.0040],
+    [0.0509, 0.0546, 0.5410, 0.0524],
+    [-0.1090, -0.1784, 0.0443, -0.5968]
+])
 
 ##############################
 
@@ -46,7 +52,17 @@ def createSystemForP(pts2d,pts3d):
     Take two lists of correspondent pooints and creates a system of equations
     in the form of a matrix A
     """
-    return A
+    # assert that there's equal amount of points in pts2d and pts3d
+    pointsPairs = zip(pts2d, pts3d)
+    a = np.array([[
+        pt3d[0], pt3d[1], pt3d[2], 1,
+        0, 0, 0, 0,
+        -pt2d[0]*pt3d[0], -pt2d[0]*pt3d[1], -pt2d[0]*pt3d[2], -pt2d[0],
+        0, 0, 0, 0,
+        pt3d[0], pt3d[1], pt3d[2], 1,
+        -pt2d[1]*pt3d[0], -pt2d[1]*pt3d[1], -pt2d[1]*pt3d[2], -pt2d[1] ] for (pt2d, pt3d) in pointsPairs ])
+    # assert shape == (pointsPairs, 24)
+    return a.reshape(len(pointsPairs) * 2, 12)
 
 def solveForP(A):
     """Given a system of linear equiations Ab = 0
@@ -54,6 +70,14 @@ def solveForP(A):
        Using SVD numpy.linalg.svd
        For 3x4 matrix P
     """
+    [l, s, r] = np.linalg.svd(A)
+    P = r[-1].reshape(3,4)
+    # Why r[-1] (last row)? Shouldn't it be r[:,-1] (last column)?
+    return P
+
+def calculateP(pts2A, pts3D):
+    A = createSystemForP(pts2A,pts3D)
+    P = solveForP(A)
     return P
 
 def KRTfromP(P):
@@ -70,25 +94,35 @@ def error(P,p2,p3D):
         diff = (p2[i][0] - p2h[0])*(p2[i][0] - p2h[0]) + ((p2[i][1] - p2h[1])*(p2[i][1] - p2h[1]))
         error = error + math.sqrt(diff)
     print (error)
-        
+
 def calibrate(pts2A,pts3D):
     "returns P adn it's decomposition"
-    A = createSystemForP(pts2A,pts3D)
-    P = solveForP(A)    
+    P = calculateP(pts2A, pts3D)
     K,R,T = KRTfromP(P)
     return (P, K, R, T)
-    
-#////////////////////////////////////////////////    
-    
+
+#////////////////////////////////////////////////
+
 def task1():
     P,K,R,T = calibrate(pts2AN,pts3DN)
     error(P,pts2AN,pts3DN)
     P,K,R,T = calibrate(pts2A,pts3D)
     error(P,pts2A,pts3D)
-    print (P)    
+    print (P)
     print (K)
     print (R)
     print (T)
 
+def realTask1():
+    P = calculateP(pts2AN, pts3DN)
+    print (P)
+    error(P, pts2AN, pts3DN)
+    P = calculateP(pts2A, pts3D)
+    print (P)
+    error(P, pts2A, pts3D)
 
-task1()
+
+
+# What do you mean by "normalized points"? Is it about float-point accurracy?
+realTask1()
+# task1()
