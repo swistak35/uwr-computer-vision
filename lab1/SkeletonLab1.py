@@ -73,6 +73,7 @@ def solveForP(A):
     [l, s, r] = np.linalg.svd(A)
     P = r[-1].reshape(3,4)
     # Why r[-1] (last row)? Shouldn't it be r[:,-1] (last column)?
+    # Or try using lstsq maybe?
     return P
 
 def calculateP(pts2A, pts3D):
@@ -82,6 +83,9 @@ def calculateP(pts2A, pts3D):
 
 def KRTfromP(P):
     "given P decomposes it into K,R, and T"
+    K, R = sc.linalg.rq(P[:,0:-1])
+    T = np.linalg.inv(K) * P[:, -1]
+    # Only Q matrix is square, shouldn't it be inverted?
     return (K,R,T)
 
 def error(P,p2,p3D):
@@ -120,6 +124,11 @@ def realTask1():
     P = calculateP(pts2A, pts3D)
     print (P)
     error(P, pts2A, pts3D)
+
+def task2():
+    P,K,R,T = calibrate(pts2AN,pts3DN)
+    print (P)
+    # Find C!
 
 
 
