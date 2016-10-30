@@ -33,9 +33,9 @@ def loadCalibData(filename):
         rotMtx, tVec = loadCalibrationMatrix(f)
         f.readline()
         projectionMatrix = buildProjectionMatrix(rotMtx, tVec)
-        mtxs.append(intrinsicMtx.dot(projectionMatrix))
+        mtxs.append(projectionMatrix)
 
-    return (distortion, mtxs)
+    return (distortion, intrinsicMtx, mtxs)
 
 def loadModelPoints(filename):
     points = []
@@ -72,6 +72,7 @@ def savePictureWithPoints(filename, projectionMatrix, homopoints):
     projectedPoints = [ (hp[0] / hp[2], hp[1] / hp[2]) for hp in projectedHomopoints ]
     drawPoints(filename, projectedPoints)
 
+# normalized coordinates: [RC] * x
 # http://wiki.icub.org/wiki/Image_Coordinate_Standard
 def normalizedPoint(p, imageSize):
     (w, h) = imageSize
@@ -90,18 +91,25 @@ def correctedPoint(p, distortion):
     # return (p[0]*coefficient, p[1]*coefficient)
     return (p[0] + p[0] * k1 * r2 + p[0] * k2 * r2 * r2, p[1] + p[1] * k1 * r2 + p[1] * k2 * r2 * r2)
 
-def savePictureWithCorrectedPoints(filename, projectionMatrix, homopoints, distortion):
+def savePictureWithCorrectedPoints(filename, intrinsicMtx, extrinsicMatrix, homopoints, distortion):
     imageSize = (640, 480)
-    doubleHomopoints = [np.longdouble(p) for p in homopoints]
-    projectedHomopoints = [ projectionMatrix.dot(p) for p in doubleHomopoints ]
-    projectedPoints = [ (hp[0] / hp[2], hp[1] / hp[2]) for hp in projectedHomopoints ]
-    normalizedPoints = [ normalizedPoint(p, imageSize) for p in projectedPoints ]
-    correctedPoints = [ correctedPoint(p, distortion) for p in normalizedPoints ]
-    denormalizedPoints = [ denormalizedPoint(p, imageSize) for p in correctedPoints ]
-    drawPoints(filename, denormalizedPoints, suffix = "-correctedpoints")
+    # projectionMatrix = intrinsicMtx.dot(extrinsicMatrix)
+    points1 = [ extrinsicMatrix.dot(p) for p in homopoints ]
+    projectedPoints = [ (hp[0] / hp[2], hp[1] / hp[2]) for hp in points1 ]
+    correctedPoints = [ correctedPoint(p, distortion) for p in projectedPoints ]
+    homopoints2 = [ (p[0], p[1], 1.0) for p in correctedPoints ]
+    points3 = [ intrinsicMtx.dot(p) for p in homopoints2 ]
+    points4 = [ (hp[0] / hp[2], hp[1] / hp[2]) for hp in points3 ]
+    # doubleHomopoints = [np.longdouble(p) for p in homopoints]
+    # projectedHomopoints = [ projectionMatrix.dot(p) for p in doubleHomopoints ]
+    # projectedPoints = [ (hp[0] / hp[2], hp[1] / hp[2]) for hp in projectedHomopoints ]
+    # normalizedPoints = [ normalizedPoint(p, imageSize) for p in projectedPoints ]
+    # correctedPoints = [ correctedPoint(p, distortion) for p in normalizedPoints ]
+    # denormalizedPoints = [ denormalizedPoint(p, imageSize) for p in correctedPoints ]
+    drawPoints(filename, points4, suffix = "-correctedpoints")
 
 def run():
-    distortion, mtxs = loadCalibData("data/task34/Calib.txt")
+    distortion, intrinsicMtx, mtxs = loadCalibData("data/task34/Calib.txt")
     points = loadModelPoints("data/task34/Model.txt")
     homopoints = [ (p[0], p[1], 0.0, 1.0) for p in points ]
 
@@ -116,6 +124,10 @@ def run():
     savePictureWithPoints("data/task34/CalibIm4.gif", mtxs[3], homopoints)
     savePictureWithPoints("data/task34/CalibIm5.gif", mtxs[4], homopoints)
 
-    savePictureWithCorrectedPoints("data/task34/CalibIm1.gif", mtxs[0], homopoints, distortion)
+    savePictureWithCorrectedPoints("data/task34/CalibIm1.gif", intrinsicMtx, mtxs[0], homopoints, distortion)
+    savePictureWithCorrectedPoints("data/task34/CalibIm2.gif", intrinsicMtx, mtxs[1], homopoints, distortion)
+    savePictureWithCorrectedPoints("data/task34/CalibIm3.gif", intrinsicMtx, mtxs[2], homopoints, distortion)
+    savePictureWithCorrectedPoints("data/task34/CalibIm4.gif", intrinsicMtx, mtxs[3], homopoints, distortion)
+    savePictureWithCorrectedPoints("data/task34/CalibIm5.gif", intrinsicMtx, mtxs[4], homopoints, distortion)
 
 run()

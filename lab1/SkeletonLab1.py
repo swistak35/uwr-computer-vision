@@ -7,12 +7,15 @@ Created on Tue Oct 18 18:54:29 2016
 
 #Lab1
 import numpy as np
+import numpy.linalg
 import scipy as sc
+import scipy.linalg
 import imageio as imio
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import math
+
 
 
 #Load 3D Points
@@ -64,6 +67,10 @@ def createSystemForP(pts2d,pts3d):
     # assert shape == (pointsPairs, 24)
     return a.reshape(len(pointsPairs) * 2, 12)
 
+def buildProjectionMatrix(rotationMtx, translationVector):
+    translationVecAsColumn = np.array([[i] for i in translationVector])
+    return np.concatenate((rotationMtx, translationVecAsColumn), axis=1)
+
 def solveForP(A):
     """Given a system of linear equiations Ab = 0
        Solves the system using Linear Least Squares Minimization
@@ -84,8 +91,7 @@ def calculateP(pts2A, pts3D):
 def KRTfromP(P):
     "given P decomposes it into K,R, and T"
     K, R = sc.linalg.rq(P[:,0:-1])
-    T = np.linalg.inv(K) * P[:, -1]
-    # Only Q matrix is square, shouldn't it be inverted?
+    T = np.linalg.inv(K).dot(P[:, -1])
     return (K,R,T)
 
 def error(P,p2,p3D):
@@ -127,11 +133,44 @@ def realTask1():
 
 def task2():
     P,K,R,T = calibrate(pts2AN,pts3DN)
+    print "Task 2"
+    print "Projection matrix:"
     print (P)
-    # Find C!
+    print (K.dot(buildProjectionMatrix(R, T)))
+    print "Intrinsic matrix:"
+    print (K)
+    print "Rotation matrix:"
+    print (R)
+    print "Translation vector"
+    print (T)
 
 
+    print "Camera center: "
+    C = np.linalg.inv(R).dot(-T)
+    print (C)
+    # Alternative way
+    # C2 = -np.linalg.inv(R).dot(np.linalg.inv(K)).dot(P[:,-1])
+    # print (C2)
 
-# What do you mean by "normalized points"? Is it about float-point accurracy?
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter([p[0] for p in pts3DN], [p[1] for p in pts3DN], [p[2] for p in pts3DN], marker='o')
+    ax.scatter(C[0], C[1], C[2], marker = '^')
+    # ax2 = fig.add_axes([0.15, 0.1, 0.7, 0.3], label='hehe', projection = '3d', alpha = 0.5, adjustable = 'box-forced')
+    # ax.plot([10, 10], [20, 20], [30, 30])
+    # theta = np.linspace(-4 * np.pi, 4 * np.pi, 100)
+    # z = np.linspace(-2, 2, 100)
+    # r = z**2 + 1
+    # x = r * np.sin(theta)
+    # y = r * np.cos(theta)
+    # ax.plot(x, y, z, label='parametric curve')
+
+    # ax2 = fig.add_subplot(111, projection='3d', label = 'foo')
+    # ax2.grid(b = False)
+    # ax2.set_frame_on(False)
+    # ax2.set_axis_off()
+
+    plt.show()
+
 realTask1()
-# task1()
+task2()
