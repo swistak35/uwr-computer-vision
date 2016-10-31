@@ -2,6 +2,8 @@ import numpy as np
 import PIL as pil
 import Image, ImageDraw
 import os.path
+import scipy.ndimage
+import scipy.misc
 
 def loadCalibrationMatrix(f):
     rows = []
@@ -110,6 +112,36 @@ def savePictureWithCorrectedPoints(filename, intrinsicMtx, extrinsicMatrix, homo
     # denormalizedPoints = [ denormalizedPoint(p, imageSize) for p in correctedPoints ]
     drawPoints(filename, points4, suffix = "-correctedpoints")
 
+def correctImage(filename, distortion, intrinsicMtx, extrinsicMtx):
+    image = scipy.ndimage.imread(filename)
+    cx,cy = np.meshgrid(np.arange(image.shape[0]), np.arange(image.shape[1]))
+    r = np.stack((cx,cy), axis=2).reshape((-1,2), order='F')
+    imager = image[:,:,0]
+    imageg = image[:,:,1]
+    imageb = image[:,:,2]
+    # distortion, intrinsicMtx, mtxs = loadCalibData("data/task34/Calib.txt")
+    # extrinsicMatrix = mtxs[0]
+    extrinsicMatrix = extrinsicMtx
+
+    endhomor = np.array([ (p[0], p[1], 1.0) for p in r ])
+    intrInv = np.linalg.inv(intrinsicMtx)
+    normalizedHomopoints = intrInv.dot(endhomor.transpose())
+    projectedPoints = np.array([ (hp[0] / hp[2], hp[1] / hp[2]) for hp in normalizedHomopoints.transpose() ])
+    correctedPoints = np.array([ correctedPoint(p, distortion) for p in projectedPoints ])
+    homopoints2 = np.array([ (p[0], p[1], 1.0) for p in correctedPoints ])
+    points3 = np.array([ intrinsicMtx.dot(p) for p in homopoints2 ])
+    points4 = np.array([ (hp[0] / hp[2], hp[1] / hp[2]) for hp in points3 ])
+    mappedPointsR = scipy.ndimage.map_coordinates(imager, points4.transpose(), order=3).reshape(480, 640)
+    mappedPointsG = scipy.ndimage.map_coordinates(imageg, points4.transpose(), order=3).reshape(480, 640)
+    mappedPointsB = scipy.ndimage.map_coordinates(imageb, points4.transpose(), order=3).reshape(480, 640)
+    newimage = np.stack((mappedPointsR, mappedPointsG, mappedPointsB), axis=-1)
+    scipy.misc.imsave("data/task34/bar.gif", newimage)
+    # distortion, intrinsicMtx, mtxs = loadCalibData("data/task34/Calib.txt")
+    # points = loadModelPoints("data/task34/Model.txt")
+    # homopoints = [ (p[0], p[1], 0.0, 1.0) for p in points ]
+    # # Undistorted pictures
+    # savePictureWithPoints("data/task34/bar.gif", intrinsicMtx, mtxs[0], homopoints)
+
 def run():
     distortion, intrinsicMtx, mtxs = loadCalibData("data/task34/Calib.txt")
     points = loadModelPoints("data/task34/Model.txt")
@@ -118,7 +150,7 @@ def run():
     # Undistorted pictures
     savePictureWithPoints("data/task34/UndistortIm1.gif", intrinsicMtx, mtxs[0], homopoints)
     savePictureWithPoints("data/task34/UndistortIm2.gif", intrinsicMtx, mtxs[1], homopoints)
-    savePictureWithPoints("data/task34/foo.gif", intrinsicMtx, mtxs[0], homopoints)
+    # savePictureWithPoints("data/task34/foo.gif", intrinsicMtx, mtxs[0], homopoints)
 
     # Distorted pictures
     savePictureWithPoints("data/task34/CalibIm1.gif", intrinsicMtx, mtxs[0], homopoints)
@@ -127,10 +159,15 @@ def run():
     savePictureWithPoints("data/task34/CalibIm4.gif", intrinsicMtx, mtxs[3], homopoints)
     savePictureWithPoints("data/task34/CalibIm5.gif", intrinsicMtx, mtxs[4], homopoints)
 
+    # Distorted images with correct points
     savePictureWithCorrectedPoints("data/task34/CalibIm1.gif", intrinsicMtx, mtxs[0], homopoints, distortion)
     savePictureWithCorrectedPoints("data/task34/CalibIm2.gif", intrinsicMtx, mtxs[1], homopoints, distortion)
     savePictureWithCorrectedPoints("data/task34/CalibIm3.gif", intrinsicMtx, mtxs[2], homopoints, distortion)
     savePictureWithCorrectedPoints("data/task34/CalibIm4.gif", intrinsicMtx, mtxs[3], homopoints, distortion)
     savePictureWithCorrectedPoints("data/task34/CalibIm5.gif", intrinsicMtx, mtxs[4], homopoints, distortion)
+
+    # Correct images
+    correctImage("data/task34/CalibIm1.gif", distortion, intrinsicMtx, mtxs[0])
+    savePictureWithPoints("data/task34/bar.gif", intrinsicMtx, mtxs[0], homopoints)
 
 run()
