@@ -98,19 +98,19 @@ def correctImage(filename, distortion, intrinsicMtx, extrinsicMtx):
     imager = image[:,:,0]
     imageg = image[:,:,1]
     imageb = image[:,:,2]
-    extrinsicMatrix = extrinsicMtx
+    imageShape = image.shape[0:2]
 
-    endhomor = np.array([ (p[0], p[1], 1.0) for p in r ])
+    endhomor = toHomogenous(r)
     intrInv = np.linalg.inv(intrinsicMtx)
-    normalizedHomopoints = intrInv.dot(endhomor.transpose())
-    projectedPoints = np.array([ (hp[0] / hp[2], hp[1] / hp[2]) for hp in normalizedHomopoints.transpose() ])
-    correctedPoints = np.array([ correctedPoint(p, distortion) for p in projectedPoints ])
-    homopoints2 = np.array([ (p[0], p[1], 1.0) for p in correctedPoints ])
-    points3 = np.array([ intrinsicMtx.dot(p) for p in homopoints2 ])
-    points4 = np.array([ (hp[0] / hp[2], hp[1] / hp[2]) for hp in points3 ])
-    mappedPointsR = scipy.ndimage.map_coordinates(imager, points4.transpose(), order=3).reshape(480, 640)
-    mappedPointsG = scipy.ndimage.map_coordinates(imageg, points4.transpose(), order=3).reshape(480, 640)
-    mappedPointsB = scipy.ndimage.map_coordinates(imageb, points4.transpose(), order=3).reshape(480, 640)
+    normalizedHomopoints = intrInv.dot(endhomor.T)
+    projectedPoints = from2Homogenous(normalizedHomopoints.T)
+    correctedPoints = undistortedPoints(projectedPoints, distortion)
+    homopoints2 = toHomogenous(correctedPoints)
+    points3 = intrinsicMtx.dot(homopoints2.T)
+    points4 = from2Homogenous(points3.T)
+    mappedPointsR = scipy.ndimage.map_coordinates(imager, points4.T, order=3).reshape(imageShape)
+    mappedPointsG = scipy.ndimage.map_coordinates(imageg, points4.T, order=3).reshape(imageShape)
+    mappedPointsB = scipy.ndimage.map_coordinates(imageb, points4.T, order=3).reshape(imageShape)
     newimage = np.stack((mappedPointsR, mappedPointsG, mappedPointsB), axis=-1)
 
     scipy.misc.imsave(mkPath(filename, "-correctedimage"), newimage)
@@ -143,18 +143,18 @@ def run():
 
     # Undistort images
     print "Saving undistorted pictures..."
-    # correctImage("data/task34/CalibIm1.gif", distortion, intrinsicMtx, extrinsicMtxs[0])
-    # correctImage("data/task34/CalibIm2.gif", distortion, intrinsicMtx, extrinsicMtxs[1])
-    # correctImage("data/task34/CalibIm3.gif", distortion, intrinsicMtx, extrinsicMtxs[2])
-    # correctImage("data/task34/CalibIm4.gif", distortion, intrinsicMtx, extrinsicMtxs[3])
-    # correctImage("data/task34/CalibIm5.gif", distortion, intrinsicMtx, extrinsicMtxs[4])
+    correctImage("data/task34/CalibIm1.gif", distortion, intrinsicMtx, extrinsicMtxs[0])
+    correctImage("data/task34/CalibIm2.gif", distortion, intrinsicMtx, extrinsicMtxs[1])
+    correctImage("data/task34/CalibIm3.gif", distortion, intrinsicMtx, extrinsicMtxs[2])
+    correctImage("data/task34/CalibIm4.gif", distortion, intrinsicMtx, extrinsicMtxs[3])
+    correctImage("data/task34/CalibIm5.gif", distortion, intrinsicMtx, extrinsicMtxs[4])
 
     # Add undistorted points to undistorted images
     print "Saving pictures with points on newly undistorted pictures..."
-    # savePictureWithPoints("data/task34/CalibIm1-correctedimage.gif", intrinsicMtx, extrinsicMtxs[0], homopoints)
-    # savePictureWithPoints("data/task34/CalibIm2-correctedimage.gif", intrinsicMtx, extrinsicMtxs[1], homopoints)
-    # savePictureWithPoints("data/task34/CalibIm3-correctedimage.gif", intrinsicMtx, extrinsicMtxs[2], homopoints)
-    # savePictureWithPoints("data/task34/CalibIm4-correctedimage.gif", intrinsicMtx, extrinsicMtxs[3], homopoints)
-    # savePictureWithPoints("data/task34/CalibIm5-correctedimage.gif", intrinsicMtx, extrinsicMtxs[4], homopoints)
+    savePictureWithPoints("data/task34/CalibIm1-correctedimage.gif", intrinsicMtx, extrinsicMtxs[0], homopoints)
+    savePictureWithPoints("data/task34/CalibIm2-correctedimage.gif", intrinsicMtx, extrinsicMtxs[1], homopoints)
+    savePictureWithPoints("data/task34/CalibIm3-correctedimage.gif", intrinsicMtx, extrinsicMtxs[2], homopoints)
+    savePictureWithPoints("data/task34/CalibIm4-correctedimage.gif", intrinsicMtx, extrinsicMtxs[3], homopoints)
+    savePictureWithPoints("data/task34/CalibIm5-correctedimage.gif", intrinsicMtx, extrinsicMtxs[4], homopoints)
 
 run()
