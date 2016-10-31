@@ -5,6 +5,8 @@ import scipy.ndimage
 import scipy.misc
 from common import *
 
+### Loading data from files
+
 def loadCalibrationMatrix(f):
     rows = []
     for i in range(0,3): # 3 lines
@@ -45,7 +47,11 @@ def loadModelPoints(filename):
             points.append([float(line[2]), float(line[3])])
             points.append([float(line[4]), float(line[5])])
             points.append([float(line[6]), float(line[7])])
-    return points
+    points = np.array(points)
+    withZValues = np.hstack((points, np.zeros(points.shape[0])[:,None]))
+    return withZValues
+
+# Helper functions
 
 def drawPoints(filename, points, suffix = "-withpoints"):
     im = Image.open(filename)
@@ -54,12 +60,6 @@ def drawPoints(filename, points, suffix = "-withpoints"):
         drawSmallCircle(draw, point[0], point[1])
     im.save(mkPath(filename, suffix), "GIF")
 
-def savePictureWithPoints(filename, intrinsicMatrix, extrinsicMatrix, homopoints):
-    projectionMatrix = intrinsicMatrix.dot(extrinsicMatrix)
-    projectedHomopoints = projectionMatrix.dot(np.array(homopoints).T)
-    projectedPoints = from2Homogenous(projectedHomopoints.T)
-    drawPoints(filename, projectedPoints)
-
 def correctedPoint(p, distortion):
     # assert shape == 2
     k1, k2 = distortion
@@ -67,13 +67,28 @@ def correctedPoint(p, distortion):
     coefficient = 1 + k1*r2 + k2*r2*r2
     return (p[0]*coefficient, p[1]*coefficient)
 
+def undistortedPoints(points, distortion):
+    # assert shape == 2
+    k1, k2 = distortion
+    r2 = points[:,0] * points[:,0] + points[:,1] * points[:,1]
+    coefficients = k1 * r2 + k2 * r2 * r2 + 1
+    return points * coefficients[:,None]
+
+# Tasks
+
+def savePictureWithPoints(filename, intrinsicMatrix, extrinsicMatrix, homopoints):
+    projectionMatrix = intrinsicMatrix.dot(extrinsicMatrix)
+    projectedHomopoints = projectionMatrix.dot(homopoints.T)
+    projectedPoints = from2Homogenous(projectedHomopoints.T)
+    drawPoints(filename, projectedPoints)
+
 def savePictureWithCorrectedPoints(filename, intrinsicMtx, extrinsicMatrix, homopoints, distortion):
-    points1 = [ extrinsicMatrix.dot(p) for p in homopoints ]
-    projectedPoints = [ (hp[0] / hp[2], hp[1] / hp[2]) for hp in points1 ]
-    correctedPoints = [ correctedPoint(p, distortion) for p in projectedPoints ]
-    homopoints2 = [ (p[0], p[1], 1.0) for p in correctedPoints ]
-    points3 = [ intrinsicMtx.dot(p) for p in homopoints2 ]
-    points4 = [ (hp[0] / hp[2], hp[1] / hp[2]) for hp in points3 ]
+    points1 = extrinsicMatrix.dot(homopoints.T)
+    projectedPoints = from2Homogenous(points1.T)
+    correctedPoints = undistortedPoints(projectedPoints, distortion)
+    homopoints2 = toHomogenous(correctedPoints)
+    points3 = intrinsicMtx.dot(homopoints2.T)
+    points4 = from2Homogenous(points3.T)
     drawPoints(filename, points4, suffix = "-correctedpoints")
 
 def correctImage(filename, distortion, intrinsicMtx, extrinsicMtx):
@@ -103,13 +118,15 @@ def correctImage(filename, distortion, intrinsicMtx, extrinsicMtx):
 def run():
     distortion, intrinsicMtx, extrinsicMtxs = loadCalibData("data/task34/Calib.txt")
     points = loadModelPoints("data/task34/Model.txt")
-    homopoints = [ (p[0], p[1], 0.0, 1.0) for p in points ]
+    homopoints = toHomogenous(points)
 
     # Undistorted pictures
+    print "Saving pictures with points on undistorted pictures..."
     savePictureWithPoints("data/task34/UndistortIm1.gif", intrinsicMtx, extrinsicMtxs[0], homopoints)
     savePictureWithPoints("data/task34/UndistortIm2.gif", intrinsicMtx, extrinsicMtxs[1], homopoints)
 
     # Distorted pictures
+    print "Saving pictures with points on distorted pictures..."
     savePictureWithPoints("data/task34/CalibIm1.gif", intrinsicMtx, extrinsicMtxs[0], homopoints)
     savePictureWithPoints("data/task34/CalibIm2.gif", intrinsicMtx, extrinsicMtxs[1], homopoints)
     savePictureWithPoints("data/task34/CalibIm3.gif", intrinsicMtx, extrinsicMtxs[2], homopoints)
@@ -117,6 +134,7 @@ def run():
     savePictureWithPoints("data/task34/CalibIm5.gif", intrinsicMtx, extrinsicMtxs[4], homopoints)
 
     # Distorted images with correct points
+    print "Saving pictures with undistorted points on distorted pictures..."
     savePictureWithCorrectedPoints("data/task34/CalibIm1.gif", intrinsicMtx, extrinsicMtxs[0], homopoints, distortion)
     savePictureWithCorrectedPoints("data/task34/CalibIm2.gif", intrinsicMtx, extrinsicMtxs[1], homopoints, distortion)
     savePictureWithCorrectedPoints("data/task34/CalibIm3.gif", intrinsicMtx, extrinsicMtxs[2], homopoints, distortion)
@@ -124,9 +142,19 @@ def run():
     savePictureWithCorrectedPoints("data/task34/CalibIm5.gif", intrinsicMtx, extrinsicMtxs[4], homopoints, distortion)
 
     # Undistort images
-    correctImage("data/task34/CalibIm1.gif", distortion, intrinsicMtx, extrinsicMtxs[0])
+    print "Saving undistorted pictures..."
+    # correctImage("data/task34/CalibIm1.gif", distortion, intrinsicMtx, extrinsicMtxs[0])
+    # correctImage("data/task34/CalibIm2.gif", distortion, intrinsicMtx, extrinsicMtxs[1])
+    # correctImage("data/task34/CalibIm3.gif", distortion, intrinsicMtx, extrinsicMtxs[2])
+    # correctImage("data/task34/CalibIm4.gif", distortion, intrinsicMtx, extrinsicMtxs[3])
+    # correctImage("data/task34/CalibIm5.gif", distortion, intrinsicMtx, extrinsicMtxs[4])
 
     # Add undistorted points to undistorted images
-    savePictureWithPoints("data/task34/CalibIm1-correctedimage.gif", intrinsicMtx, extrinsicMtxs[0], homopoints)
+    print "Saving pictures with points on newly undistorted pictures..."
+    # savePictureWithPoints("data/task34/CalibIm1-correctedimage.gif", intrinsicMtx, extrinsicMtxs[0], homopoints)
+    # savePictureWithPoints("data/task34/CalibIm2-correctedimage.gif", intrinsicMtx, extrinsicMtxs[1], homopoints)
+    # savePictureWithPoints("data/task34/CalibIm3-correctedimage.gif", intrinsicMtx, extrinsicMtxs[2], homopoints)
+    # savePictureWithPoints("data/task34/CalibIm4-correctedimage.gif", intrinsicMtx, extrinsicMtxs[3], homopoints)
+    # savePictureWithPoints("data/task34/CalibIm5-correctedimage.gif", intrinsicMtx, extrinsicMtxs[4], homopoints)
 
 run()
