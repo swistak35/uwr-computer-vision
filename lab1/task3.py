@@ -13,6 +13,7 @@ def loadCalibrationMatrix(f):
     return (rotationMtx, translationVector)
 
 def buildProjectionMatrix(rotationMtx, translationVector):
+    # np.hstack ?
     translationVecAsColumn = np.array([[i] for i in translationVector])
     return np.concatenate((rotationMtx, translationVecAsColumn), axis=1)
 
@@ -67,7 +68,8 @@ def drawPoints(filename, points, suffix = "-withpoints"):
     # im.show(draw)
     im.save(basePath + suffix + extPath, "GIF")
 
-def savePictureWithPoints(filename, projectionMatrix, homopoints):
+def savePictureWithPoints(filename, intrinsicMatrix, extrinsicMatrix, homopoints):
+    projectionMatrix = intrinsicMatrix.dot(extrinsicMatrix)
     projectedHomopoints = [ projectionMatrix.dot(p) for p in homopoints ]
     projectedPoints = [ (hp[0] / hp[2], hp[1] / hp[2]) for hp in projectedHomopoints ]
     drawPoints(filename, projectedPoints)
@@ -87,9 +89,9 @@ def denormalizedPoint(p, imageSize):
 def correctedPoint(p, distortion):
     k1, k2 = distortion
     r2 = p[0]*p[0] + p[1]*p[1]
-    # coefficient = 1 + k1*r2 + k2*r2*r2
-    # return (p[0]*coefficient, p[1]*coefficient)
-    return (p[0] + p[0] * k1 * r2 + p[0] * k2 * r2 * r2, p[1] + p[1] * k1 * r2 + p[1] * k2 * r2 * r2)
+    coefficient = 1 + k1*r2 + k2*r2*r2
+    return (p[0]*coefficient, p[1]*coefficient)
+    # return (p[0] + p[0] * k1 * r2 + p[0] * k2 * r2 * r2, p[1] + p[1] * k1 * r2 + p[1] * k2 * r2 * r2)
 
 def savePictureWithCorrectedPoints(filename, intrinsicMtx, extrinsicMatrix, homopoints, distortion):
     imageSize = (640, 480)
@@ -114,15 +116,16 @@ def run():
     homopoints = [ (p[0], p[1], 0.0, 1.0) for p in points ]
 
     # Undistorted pictures
-    savePictureWithPoints("data/task34/UndistortIm1.gif", mtxs[0], homopoints)
-    savePictureWithPoints("data/task34/UndistortIm2.gif", mtxs[1], homopoints)
+    savePictureWithPoints("data/task34/UndistortIm1.gif", intrinsicMtx, mtxs[0], homopoints)
+    savePictureWithPoints("data/task34/UndistortIm2.gif", intrinsicMtx, mtxs[1], homopoints)
+    savePictureWithPoints("data/task34/foo.gif", intrinsicMtx, mtxs[0], homopoints)
 
     # Distorted pictures
-    savePictureWithPoints("data/task34/CalibIm1.gif", mtxs[0], homopoints)
-    savePictureWithPoints("data/task34/CalibIm2.gif", mtxs[1], homopoints)
-    savePictureWithPoints("data/task34/CalibIm3.gif", mtxs[2], homopoints)
-    savePictureWithPoints("data/task34/CalibIm4.gif", mtxs[3], homopoints)
-    savePictureWithPoints("data/task34/CalibIm5.gif", mtxs[4], homopoints)
+    savePictureWithPoints("data/task34/CalibIm1.gif", intrinsicMtx, mtxs[0], homopoints)
+    savePictureWithPoints("data/task34/CalibIm2.gif", intrinsicMtx, mtxs[1], homopoints)
+    savePictureWithPoints("data/task34/CalibIm3.gif", intrinsicMtx, mtxs[2], homopoints)
+    savePictureWithPoints("data/task34/CalibIm4.gif", intrinsicMtx, mtxs[3], homopoints)
+    savePictureWithPoints("data/task34/CalibIm5.gif", intrinsicMtx, mtxs[4], homopoints)
 
     savePictureWithCorrectedPoints("data/task34/CalibIm1.gif", intrinsicMtx, mtxs[0], homopoints, distortion)
     savePictureWithCorrectedPoints("data/task34/CalibIm2.gif", intrinsicMtx, mtxs[1], homopoints, distortion)
