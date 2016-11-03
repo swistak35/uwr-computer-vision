@@ -95,6 +95,8 @@ def correctImage(filename, distortion, intrinsicMtx, extrinsicMtx):
     image = scipy.ndimage.imread(filename)
     cx,cy = np.meshgrid(np.arange(image.shape[0]), np.arange(image.shape[1]))
     r = np.stack((cx,cy), axis=2).transpose((1, 0, 2)).reshape((-1,2))
+    # Wisze Cielakowi piwo za tego fliplr!!!
+    r = np.fliplr(r)
     imager = image[:,:,0]
     imageg = image[:,:,1]
     imageb = image[:,:,2]
@@ -108,6 +110,7 @@ def correctImage(filename, distortion, intrinsicMtx, extrinsicMtx):
     homopoints2 = toHomogenous(correctedPoints)
     points3 = intrinsicMtx.dot(homopoints2.T)
     points4 = from2Homogenous(points3.T)
+    points4 = np.fliplr(points4)
     mappedPointsR = scipy.ndimage.map_coordinates(imager, points4.T, order=3).reshape(imageShape)
     mappedPointsG = scipy.ndimage.map_coordinates(imageg, points4.T, order=3).reshape(imageShape)
     mappedPointsB = scipy.ndimage.map_coordinates(imageb, points4.T, order=3).reshape(imageShape)
