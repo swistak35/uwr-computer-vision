@@ -27,6 +27,12 @@ def corrected_f(f):
     cf = l.dot(np.diag(s)).dot(r)
     return cf
 
+def correctEssential(e):
+    [l, s, r] = np.linalg.svd(e)
+    avg = (s[0] + s[1]) / 2
+    ce = l.dot(np.diag([avg, avg, 0.0])).dot(r)
+    return ce
+
 def getNormalizationMtx(imageSize):
     (w, h) = imageSize
     normalizationMtx = np.array([
@@ -67,6 +73,14 @@ imageSize2 = getImageSize("data/kronan2.JPG")
 normMtx1 = getNormalizationMtx(imageSize1)
 normMtx2 = getNormalizationMtx(imageSize2)
 
+# Should draw on the second image too
+
+# Should draw the points
+
+# Why we adjust Essential matrix in different way, than fundamental matrix?
+
+# Pamietac ze punkty rysowane powinny byc inne od tych wybranych do obliczania macierzy, zeby widac jak normalizacja pomaga
+
 nps1 = normMtx1.dot(ps1.T).T
 nps2 = normMtx2.dot(ps2.T).T
 
@@ -74,3 +88,16 @@ nf = corrected_f(calculateFundamentalMtx(nps1, nps2))
 dnf = normMtx2.T.dot(nf).dot(normMtx1)
 
 drawEpilines("data/kronan1.JPG", dnf, ps2, "-with_normalized_and_corrected_epilines")
+
+# Task 4
+
+intrinsicMtx = sc.io.loadmat("data/compEx3data.mat")['K']
+invIntrinsicMtx = np.linalg.inv(intrinsicMtx)
+
+kps1 = invIntrinsicMtx.dot(ps1.T).T
+kps2 = invIntrinsicMtx.dot(ps2.T).T
+
+essentialMtx = correctEssential(calculateFundamentalMtx(kps1, kps2))
+fundamentalMtxFromEssential = invIntrinsicMtx.T.dot(essentialMtx).dot(invIntrinsicMtx)
+
+drawEpilines("data/kronan1.JPG", fundamentalMtxFromEssential, ps2, "-from-essential-matrix")
