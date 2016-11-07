@@ -43,6 +43,10 @@ def calculateFundamentalMtx(points1, points2):
     f = r[-1].reshape(3,3)
     return f
 
+def getImageSize(filename):
+    im = Image.open(filename)
+    return im.size
+
 mat = sc.io.loadmat("data/compEx1data.mat")['x']
 xim1 = mat[0,0].T
 xim2 = mat[1,0].T
@@ -56,3 +60,17 @@ drawEpilines("data/kronan1.JPG", f, ps2, "-withepilines")
 
 cf = corrected_f(f)
 drawEpilines("data/kronan1.JPG", cf, ps2, "-withcorrectedepilines")
+
+imageSize1 = getImageSize("data/kronan1.JPG")
+imageSize2 = getImageSize("data/kronan2.JPG")
+
+normMtx1 = getNormalizationMtx(imageSize1)
+normMtx2 = getNormalizationMtx(imageSize2)
+
+nps1 = normMtx1.dot(ps1.T).T
+nps2 = normMtx2.dot(ps2.T).T
+
+nf = corrected_f(calculateFundamentalMtx(nps1, nps2))
+dnf = normMtx2.T.dot(nf).dot(normMtx1)
+
+drawEpilines("data/kronan1.JPG", dnf, ps2, "-with_normalized_and_corrected_epilines")
