@@ -9,16 +9,23 @@ def mkPath(filename, suffix):
     basePath, extPath = os.path.splitext(filename)
     return (basePath + suffix + extPath)
 
-def drawEpilines(filename, fundamentalMtx, points, suffix):
+# Draw small circle on an image
+# `draw` is a ImageDraw from PIL
+def drawSmallCircle(draw, x, y, colorCircle = (0, 255, 0), width = 2):
+    # Top left and bottom right corners
+    draw.ellipse((x - width, y - width, x + width, y + width), fill = colorCircle)
+
+def drawEpilines(filename, fundamentalMtx, points1, points2, suffix):
     im = Image.open(filename)
     draw = ImageDraw.Draw(im)
-    for mp in points:
-        l = fundamentalMtx.dot(mp)
+    for (p1, p2) in zip(points1, points2):
+        l = fundamentalMtx.dot(p2)
         x1 = 0
         y1 = (-l[2] - l[0] * x1) / l[1]
         x2 = im.size[0]
         y2 = (-l[2] - l[0] * x2) / l[1]
         draw.line([(x1, y1), (x2, y2)], fill = 200, width = 3)
+        drawSmallCircle(draw, p1[0], p1[1], width = 4)
     im.save(mkPath(filename, suffix), "JPEG")
 
 def corrected_f(f):
@@ -43,7 +50,7 @@ def getNormalizationMtx(imageSize):
     return normalizationMtx
 
 def calculateFundamentalMtx(points1, points2):
-    points = np.hstack((points1, points2))
+    points = np.hstack((points1, points2))[0:8]
     a = np.array([ (x1 * x2, x1 * y2, x1, y1 * x2, y1 * y2, y1, x2, y2, 1) for (x1, y1, w1, x2, y2, w2) in points ])
     [l, s, r] = np.linalg.svd(a)
     f = r[-1].reshape(3,3)
@@ -53,51 +60,55 @@ def getImageSize(filename):
     im = Image.open(filename)
     return im.size
 
-mat = sc.io.loadmat("data/compEx1data.mat")['x']
-xim1 = mat[0,0].T
-xim2 = mat[1,0].T
-pts_indices = [3, 42, 123, 234, 456, 567, 678, 890]
-# my_points = xims[0:8]
-ps1 = xim1[pts_indices]
-ps2 = xim2[pts_indices]
-
-f = calculateFundamentalMtx(ps1, ps2)
-drawEpilines("data/kronan1.JPG", f, ps2, "-withepilines")
-
-cf = corrected_f(f)
-drawEpilines("data/kronan1.JPG", cf, ps2, "-withcorrectedepilines")
-
-imageSize1 = getImageSize("data/kronan1.JPG")
-imageSize2 = getImageSize("data/kronan2.JPG")
-
-normMtx1 = getNormalizationMtx(imageSize1)
-normMtx2 = getNormalizationMtx(imageSize2)
-
 # Should draw on the second image too
-
-# Should draw the points
 
 # Why we adjust Essential matrix in different way, than fundamental matrix?
 
-# Pamietac ze punkty rysowane powinny byc inne od tych wybranych do obliczania macierzy, zeby widac jak normalizacja pomaga
+def run():
+    mat = sc.io.loadmat("data/compEx1data.mat")['x']
+    xim1 = mat[0,0].T
+    xim2 = mat[1,0].T
 
-nps1 = normMtx1.dot(ps1.T).T
-nps2 = normMtx2.dot(ps2.T).T
+    # "Random"
+    pts_indices = [3, 42, 123, 234, 456, 567, 678, 890, 1024]
+    # my_points = xims[0:8]
 
-nf = corrected_f(calculateFundamentalMtx(nps1, nps2))
-dnf = normMtx2.T.dot(nf).dot(normMtx1)
+    ### Task 1, 2
+    # Drawing lines for uncorrected fundamental matrix
+    points1 = xim1[pts_indices]
+    points2 = xim2[pts_indices]
+    fundamentalMtx = calculateFundamentalMtx(points1, points2)
+    drawEpilines("data/kronan1.JPG", fundamentalMtx, points1, points2, "-phase1")
 
-drawEpilines("data/kronan1.JPG", dnf, ps2, "-with_normalized_and_corrected_epilines")
+    # Drawing lines for corrected fundamental matrix
+    correctedFundamentalMtx = corrected_f(fundamentalMtx)
+    drawEpilines("data/kronan1.JPG", correctedFundamentalMtx, points1, points2, "-phase2")
 
-# Task 4
+    ### Task 3
+    imageSize1 = getImageSize("data/kronan1.JPG")
+    imageSize2 = getImageSize("data/kronan2.JPG")
 
-intrinsicMtx = sc.io.loadmat("data/compEx3data.mat")['K']
-invIntrinsicMtx = np.linalg.inv(intrinsicMtx)
+    normMtx1 = getNormalizationMtx(imageSize1)
+    normMtx2 = getNormalizationMtx(imageSize2)
 
-kps1 = invIntrinsicMtx.dot(ps1.T).T
-kps2 = invIntrinsicMtx.dot(ps2.T).T
+    normalizedPoints1 = normMtx1.dot(points1.T).T
+    normalizedPoints2 = normMtx2.dot(points2.T).T
 
-essentialMtx = correctEssential(calculateFundamentalMtx(kps1, kps2))
-fundamentalMtxFromEssential = invIntrinsicMtx.T.dot(essentialMtx).dot(invIntrinsicMtx)
+    normalizedFundamentalMtx = corrected_f(calculateFundamentalMtx(normalizedPoints1, normalizedPoints2))
+    denormalizedFundamentalMtx = normMtx2.T.dot(normalizedFundamentalMtx).dot(normMtx1)
 
-drawEpilines("data/kronan1.JPG", fundamentalMtxFromEssential, ps2, "-from-essential-matrix")
+    drawEpilines("data/kronan1.JPG", denormalizedFundamentalMtx, points1, points2, "-phase3")
+
+    ### Task 4
+    intrinsicMtx = sc.io.loadmat("data/compEx3data.mat")['K']
+    invIntrinsicMtx = np.linalg.inv(intrinsicMtx)
+
+    normalizedPoints1 = invIntrinsicMtx.dot(points1.T).T
+    normalizedPoints2 = invIntrinsicMtx.dot(points2.T).T
+
+    essentialMtx = correctEssential(calculateFundamentalMtx(normalizedPoints1, normalizedPoints2))
+    fundamentalMtxFromEssential = invIntrinsicMtx.T.dot(essentialMtx).dot(invIntrinsicMtx)
+
+    drawEpilines("data/kronan1.JPG", fundamentalMtxFromEssential, points1, points2, "-phase4")
+
+run()
