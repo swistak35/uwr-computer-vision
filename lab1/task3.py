@@ -95,7 +95,6 @@ def correctImage(filename, distortion, intrinsicMtx, extrinsicMtx):
     image = scipy.ndimage.imread(filename)
     cx,cy = np.meshgrid(np.arange(image.shape[0]), np.arange(image.shape[1]))
     r = np.stack((cx,cy), axis=2).transpose((1, 0, 2)).reshape((-1,2))
-    # Wisze Cielakowi piwo za tego fliplr!!!
     r = np.fliplr(r)
     imager = image[:,:,0]
     imageg = image[:,:,1]
