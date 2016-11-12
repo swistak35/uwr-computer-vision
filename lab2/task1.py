@@ -5,6 +5,12 @@ import PIL as pil
 import os.path
 import Image, ImageDraw
 
+
+AMOUNT_OF_POINTS_TO_DRAW = 15
+AMOUNT_OF_POINTS_TO_ESTIMATE = 15
+
+assert(AMOUNT_OF_POINTS_TO_DRAW >= AMOUNT_OF_POINTS_TO_ESTIMATE)
+
 def mkPath(filename, suffix):
     basePath, extPath = os.path.splitext(filename)
     return (basePath + suffix + extPath)
@@ -28,7 +34,7 @@ def drawEpilines(filename, fundamentalMtx, points1, points2, suffix):
         drawSmallCircle(draw, p1[0], p1[1], width = 4)
     im.save(mkPath(filename, suffix), "JPEG")
 
-def corrected_f(f):
+def correctFundamental(f):
     [l, s, r] = np.linalg.svd(f)
     s[2] = 0.0
     cf = l.dot(np.diag(s)).dot(r)
@@ -57,22 +63,16 @@ def getNormalizationMtx(points):
     return r
 
 def calculateFundamentalMtx(points1, points2):
-    points = np.hstack((points1, points2))[0:20]
+    points = np.hstack((points1, points2))[0:AMOUNT_OF_POINTS_TO_ESTIMATE]
     # Czy to dobra kolejnosc ?
     a = np.array([ (x1 * x2, x1 * y2, x1, y1 * x2, y1 * y2, y1, x2, y2, 1) for (x1, y1, w1, x2, y2, w2) in points ])
     [l, s, r] = np.linalg.svd(a)
     f = r[-1].reshape(3,3)
     return f
 
-def getImageSize(filename):
-    im = Image.open(filename)
-    return im.size
-
 def rescale(f):
     return f
     # return (f / f[2,2])
-
-# Should draw on the second image too
 
 # Why we adjust Essential matrix in different way, than fundamental matrix?
 
@@ -84,9 +84,11 @@ def run():
     # "Random"
     # pts_indices = [3, 42, 123, 234, 456, 567, 678, 890, 1024]
     # pts_indices = [3, 20, 42, 64, 123, 234, 256, 456, 567, 600, 678, 890, 930, 1024]
-    pts_indices = np.random.choice(xim1.shape[0], 40)
+
+    # quite good on 1,2,4: [1190  138 1562  631  407 1790  791 1448  112 1482  185  251 1233 1096  793 1680 1149 1809 1294 1715  906 1533 1949  809  629 1806 1353 1092  932  333 775  998 1870 1823  106  990  730 1275 1449 1424]
+    # pts_indices = np.random.choice(xim1.shape[0], AMOUNT_OF_POINTS_TO_DRAW)
+    pts_indices = [ 262,  639, 1955, 1375,  558, 1464,   10, 1670, 1897,  731, 1937, 1504, 1748,  120,  906]
     print pts_indices
-    # my_points = xims[0:8]
 
     ### Task 1, 2
     # Drawing lines for uncorrected fundamental matrix
@@ -97,22 +99,19 @@ def run():
     drawEpilines("data/kronan2.JPG", fundamentalMtx.T, points2, points1, "-phase1")
 
     # Drawing lines for corrected fundamental matrix
-    correctedFundamentalMtx = rescale(corrected_f(fundamentalMtx))
+    correctedFundamentalMtx = rescale(correctFundamental(fundamentalMtx))
     drawEpilines("data/kronan1.JPG", correctedFundamentalMtx, points1, points2, "-phase2")
     drawEpilines("data/kronan2.JPG", correctedFundamentalMtx.T, points2, points1, "-phase2")
 
     ### Task 3
-    imageSize1 = getImageSize("data/kronan1.JPG")
-    imageSize2 = getImageSize("data/kronan2.JPG")
-
     normMtx1 = getNormalizationMtx(points1)
     normMtx2 = getNormalizationMtx(points2)
 
     normalizedPoints1 = normMtx1.dot(points1.T).T
     normalizedPoints2 = normMtx2.dot(points2.T).T
 
-    normalizedFundamentalMtx = corrected_f(calculateFundamentalMtx(normalizedPoints1, normalizedPoints2))
-    denormalizedFundamentalMtx = rescale(normMtx2.T.dot(normalizedFundamentalMtx).dot(normMtx1))
+    normalizedFundamentalMtx = calculateFundamentalMtx(normalizedPoints1, normalizedPoints2)
+    denormalizedFundamentalMtx = rescale(correctFundamental(normMtx2.T.dot(normalizedFundamentalMtx).dot(normMtx1)))
 
     drawEpilines("data/kronan1.JPG", denormalizedFundamentalMtx, points1, points2, "-phase3")
     drawEpilines("data/kronan2.JPG", denormalizedFundamentalMtx.T, points2, points1, "-phase3")
