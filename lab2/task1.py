@@ -40,17 +40,24 @@ def correctEssential(e):
     ce = l.dot(np.diag([avg, avg, 0.0])).dot(r)
     return ce
 
-def getNormalizationMtx(imageSize):
-    (w, h) = imageSize
-    normalizationMtx = np.array([
-        [ 2.0 / w, 0.0, -1.0 ],
-        [ 0.0, 2.0 / h, -1.0 ],
-        [ 0.0, 0.0, 1.0 ]
-    ])
-    return normalizationMtx
+def getNormalizationMtx(points):
+    meanX = np.mean(points[:,0])
+    meanY = np.mean(points[:,1])
+    stdX = np.std(points[:,0])
+    stdY = np.std(points[:,1])
+    mS = np.array([
+        [ 1.41 / stdX, 0, 0 ],
+        [ 0, 1.41 / stdY, 0],
+        [0, 0, 1]])
+    mT = np.array([ [1, 0, -meanX], [0, 1, -meanY], [0, 0, 1] ])
+    r = mS.dot(mT)
+    pointsd = r.dot(points.T).T
+    avgDist = np.mean([ np.sqrt(x * x + y * y) / (w*w) for (x,y,w) in pointsd ])
+    print avgDist
+    return r
 
 def calculateFundamentalMtx(points1, points2):
-    points = np.hstack((points1, points2))[0:8]
+    points = np.hstack((points1, points2))[0:20]
     # Czy to dobra kolejnosc ?
     a = np.array([ (x1 * x2, x1 * y2, x1, y1 * x2, y1 * y2, y1, x2, y2, 1) for (x1, y1, w1, x2, y2, w2) in points ])
     [l, s, r] = np.linalg.svd(a)
@@ -62,11 +69,10 @@ def getImageSize(filename):
     return im.size
 
 def rescale(f):
-    return (f / f[2,2])
+    return f
+    # return (f / f[2,2])
 
 # Should draw on the second image too
-
-# When drawing, do we convert from Homogenous coordinates???
 
 # Why we adjust Essential matrix in different way, than fundamental matrix?
 
@@ -76,8 +82,10 @@ def run():
     xim2 = mat[1,0].T
 
     # "Random"
-    pts_indices = [3, 42, 123, 234, 456, 567, 678, 890, 1024]
-    pts_indices = [3, 20, 42, 64, 123, 234, 256, 456, 567, 600, 678, 890, 930, 1024]
+    # pts_indices = [3, 42, 123, 234, 456, 567, 678, 890, 1024]
+    # pts_indices = [3, 20, 42, 64, 123, 234, 256, 456, 567, 600, 678, 890, 930, 1024]
+    pts_indices = np.random.choice(xim1.shape[0], 40)
+    print pts_indices
     # my_points = xims[0:8]
 
     ### Task 1, 2
@@ -86,19 +94,19 @@ def run():
     points2 = xim2[pts_indices]
     fundamentalMtx = rescale(calculateFundamentalMtx(points1, points2))
     drawEpilines("data/kronan1.JPG", fundamentalMtx, points1, points2, "-phase1")
-    drawEpilines("data/kronan2.JPG", fundamentalMtx, points2, points1, "-phase1")
+    drawEpilines("data/kronan2.JPG", fundamentalMtx.T, points2, points1, "-phase1")
 
     # Drawing lines for corrected fundamental matrix
     correctedFundamentalMtx = rescale(corrected_f(fundamentalMtx))
     drawEpilines("data/kronan1.JPG", correctedFundamentalMtx, points1, points2, "-phase2")
-    drawEpilines("data/kronan2.JPG", correctedFundamentalMtx, points2, points1, "-phase2")
+    drawEpilines("data/kronan2.JPG", correctedFundamentalMtx.T, points2, points1, "-phase2")
 
     ### Task 3
     imageSize1 = getImageSize("data/kronan1.JPG")
     imageSize2 = getImageSize("data/kronan2.JPG")
 
-    normMtx1 = getNormalizationMtx(imageSize1)
-    normMtx2 = getNormalizationMtx(imageSize2)
+    normMtx1 = getNormalizationMtx(points1)
+    normMtx2 = getNormalizationMtx(points2)
 
     normalizedPoints1 = normMtx1.dot(points1.T).T
     normalizedPoints2 = normMtx2.dot(points2.T).T
@@ -107,7 +115,7 @@ def run():
     denormalizedFundamentalMtx = rescale(normMtx2.T.dot(normalizedFundamentalMtx).dot(normMtx1))
 
     drawEpilines("data/kronan1.JPG", denormalizedFundamentalMtx, points1, points2, "-phase3")
-    drawEpilines("data/kronan2.JPG", denormalizedFundamentalMtx, points2, points1, "-phase3")
+    drawEpilines("data/kronan2.JPG", denormalizedFundamentalMtx.T, points2, points1, "-phase3")
 
     ### Task 4
     intrinsicMtx = sc.io.loadmat("data/compEx3data.mat")['K']
@@ -117,9 +125,9 @@ def run():
     normalizedPoints2 = invIntrinsicMtx.dot(points2.T).T
 
     essentialMtx = correctEssential(calculateFundamentalMtx(normalizedPoints1, normalizedPoints2))
-    fundamentalMtxFromEssential = invIntrinsicMtx.T.dot(essentialMtx).dot(invIntrinsicMtx)
+    fundamentalMtxFromEssential = rescale(invIntrinsicMtx.T.dot(essentialMtx).dot(invIntrinsicMtx))
 
-    drawEpilines("data/kronan1.JPG", rescale(fundamentalMtxFromEssential), points1, points2, "-phase4")
-    drawEpilines("data/kronan2.JPG", rescale(fundamentalMtxFromEssential), points2, points1, "-phase4")
+    drawEpilines("data/kronan1.JPG", fundamentalMtxFromEssential, points1, points2, "-phase4")
+    drawEpilines("data/kronan2.JPG", fundamentalMtxFromEssential.T, points2, points1, "-phase4")
 
 run()
