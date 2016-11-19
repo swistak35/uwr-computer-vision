@@ -202,25 +202,42 @@ def task5(pointsData, pts_indices):
 
     # Do I need that for something?
     # essentialMtx2 = U.dot(np.diag((1.0,1.0,0.0))).dot(Vt)
-    # newNormalizedPoints1 =
 
     P2_1 = np.hstack((R1, u3.reshape(3,1)))
     P2_2 = np.hstack((R1, -u3.reshape(3,1)))
     P2_3 = np.hstack((R2, u3.reshape(3,1)))
     P2_4 = np.hstack((R2, -u3.reshape(3,1)))
 
+    cameras = [P2_1, P2_2, P2_3, P2_4]
+
+    bestCamera = 0
+    bestCameraResult = 0
     for (idx, P2) in enumerate([P2_1, P2_2, P2_3, P2_4]):
-        print("Task5 # %d" % idx)
+        print("Task5 # camera %d" % idx)
         points3d = np.array([ compute3dPoint(P1, P2, points2d) for points2d in zip(normalizedPoints1, normalizedPoints2) ])
         nonHomoPoints3d = (points3d.T / points3d[:,3]).T
 
-        pointsInFrontOfP1 = np.array([ p for p in nonHomoPoints3d if P1.dot(p)[2] > 0 ])
-        pointsInFrontOfP2 = np.array([ p for p in nonHomoPoints3d if P2.dot(p)[2] > 0 ])
-        print(len(pointsInFrontOfP1))
-        print(len(pointsInFrontOfP2))
+        isCameraP1LookingInZDirection = P1.dot(np.array([0.0, 0.0, 10000.0, 1.0]))[2]
+        isCameraP2LookingInZDirection = P2.dot(np.array([0.0, 0.0, 10000.0, 1.0]))[2]
+        # print(isCameraP1LookingInZDirection > 0)
+        # print(isCameraP2LookingInZDirection > 0)
+        pointsInFrontOfP1 = np.array([ p for p in nonHomoPoints3d if (isCameraP1LookingInZDirection * P1.dot(p)[2]) > 0 ])
+        pointsInFrontOfP2 = np.array([ p for p in nonHomoPoints3d if (isCameraP2LookingInZDirection * P2.dot(p)[2]) > 0 ])
+        sumPoints = len(pointsInFrontOfP1) + len(pointsInFrontOfP2)
+        print("Points in front of P1: %d" % len(pointsInFrontOfP1))
+        print("Points in front of P2: %d" % len(pointsInFrontOfP2))
+        if (sumPoints > bestCameraResult):
+            bestCamera = idx
+            bestCameraResult = sumPoints
+
 
         renderPlyFile(nonHomoPoints3d, "pc%d.ply" % idx)
-        # renderPlyFile(pointsInFrontOfP1, "pc%d.ply" % idx)
+
+    print("And the best camera is: %d" % idx)
+    P2 = cameras[bestCamera]
+    points3d = np.array([ compute3dPoint(P1, P2, points2d) for points2d in zip(normalizedPoints1, normalizedPoints2) ])
+    nonHomoPoints3d = (points3d.T / points3d[:,3]).T
+    renderPlyFile(nonHomoPoints3d, "pc.ply")
 
 def run():
     pointsData = loadPointsData()
