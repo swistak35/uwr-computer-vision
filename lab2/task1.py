@@ -68,13 +68,10 @@ def getNormalizationMtx(points):
 
 def calculateFundamentalMtx(points1, points2):
     points = np.hstack((points1, points2))[0:AMOUNT_OF_POINTS_TO_ESTIMATE]
-    # a = np.array([ (x1 * x2, x1 * y2, x1, y1 * x2, y1 * y2, y1, x2, y2, 1) for (x1, y1, w1, x2, y2, w2) in points ])
-    # a = np.array([ ( x * xp, y * xp, xp, x * yp, y * yp, yp, x, y, 1 ) for (x, y, w, xp, yp, wp) in points ])
-    a = np.array([ (x1 * x2, x1 * y2, x1, y1 * x2, y1 * y2, y1, x2, y2, 1) for (x2, y2, w2, x1, y1, w1) in points ])
+    a = np.array([ ( x * xp, y * xp, xp, x * yp, y * yp, yp, x, y, 1 ) for (x, y, w, xp, yp, wp) in points ])
     [l, s, r] = np.linalg.svd(a)
-    f1 = r[-1].reshape(3,3)
-
-    return f1
+    f = r[-1].reshape(3,3)
+    return f
 
 def rescale(f):
     # return f
