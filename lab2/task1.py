@@ -4,6 +4,7 @@ import numpy as np
 import PIL as pil
 import os.path
 import Image, ImageDraw
+from plyfile import PlyData, PlyElement
 
 
 AMOUNT_OF_POINTS_TO_DRAW = 15
@@ -94,6 +95,25 @@ def findRandomPoints(pointsData):
 
     return pts_indices
 
+def computeEssential(points1, points2):
+    intrinsicMtx = sc.io.loadmat("data/compEx3data.mat")['K']
+    invIntrinsicMtx = np.linalg.inv(intrinsicMtx)
+
+    normalizedPoints1 = invIntrinsicMtx.dot(points1.T).T
+    normalizedPoints2 = invIntrinsicMtx.dot(points2.T).T
+
+    essentialMtx = correctEssential(calculateFundamentalMtx(normalizedPoints1, normalizedPoints2))
+
+    return (essentialMtx, invIntrinsicMtx)
+
+def renderPlyFile(XX, filename):
+    if len(XX) > 0:
+        points = np.array(zip(XX[:,0].ravel(), XX[:,1].ravel(), XX[:,2].ravel()),dtype=[('x','f4'), ('y','f4'),('z', 'f4')])
+        el = PlyElement.describe(points, 'vertex')
+        PlyData([el]).write(filename)
+    else:
+        print("Nothing rendered into file '%s' because points set was empty" % filename)
+
 # Drawing lines for uncorrected fundamental matrix
 def task1(pointsData, pts_indices):
     xim1, xim2 = pointsData
@@ -135,17 +155,75 @@ def task4(pointsData, pts_indices):
     points1 = xim1[pts_indices]
     points2 = xim2[pts_indices]
 
-    intrinsicMtx = sc.io.loadmat("data/compEx3data.mat")['K']
-    invIntrinsicMtx = np.linalg.inv(intrinsicMtx)
-
-    normalizedPoints1 = invIntrinsicMtx.dot(points1.T).T
-    normalizedPoints2 = invIntrinsicMtx.dot(points2.T).T
-
-    essentialMtx = correctEssential(calculateFundamentalMtx(normalizedPoints1, normalizedPoints2))
+    (essentialMtx, invIntrinsicMtx) = computeEssential(points1, points2)
     fundamentalMtxFromEssential = rescale(invIntrinsicMtx.T.dot(essentialMtx).dot(invIntrinsicMtx))
 
     drawEpilines("data/kronan1.JPG", fundamentalMtxFromEssential.T, points1, points2, "-phase4")
     drawEpilines("data/kronan2.JPG", fundamentalMtxFromEssential, points2, points1, "-phase4")
+
+def compute3dPoint(P1, P2, points):
+    point1, point2 = points
+
+    a = np.array([
+        point1[0] * P1[2] - P1[0],
+        point1[1] * P1[2] - P1[1],
+        point2[0] * P2[2] - P2[0],
+        point2[1] * P2[2] - P2[1]
+        ])
+    point1, point2 = points
+    [l, s, r] = np.linalg.svd(a)
+    point3d = r[-1]
+
+    return point3d
+
+def task5(pointsData, pts_indices):
+    xim1, xim2 = pointsData
+
+    intrinsicMtx = sc.io.loadmat("data/compEx3data.mat")['K']
+    invIntrinsicMtx = np.linalg.inv(intrinsicMtx)
+
+    normalizedPoints1 = invIntrinsicMtx.dot(xim1.T).T
+    normalizedPoints2 = invIntrinsicMtx.dot(xim2.T).T
+
+    essentialMtx = correctEssential(calculateFundamentalMtx(normalizedPoints1, normalizedPoints2))
+
+    P1 = np.hstack((np.diag((1,1,1)), np.zeros(3).reshape(3,1)))
+    U, D, Vt = np.linalg.svd(essentialMtx)
+    Z = np.array([
+        [ 0.0, 1.0, 0.0 ],
+        [ -1.0, 0.0, 0.0 ],
+        [ 0.0, 0.0, 0.0 ]
+        ])
+    W = np.array([
+        [ 0.0, -1.0, 0.0 ],
+        [ 1.0, 0.0, 0.0 ],
+        [ 0.0, 0.0, 1.0 ]
+        ])
+    R1 = U.dot(W).dot(Vt)
+    R2 = U.dot(W.T).dot(Vt)
+    u3 = U[:,2]
+
+    # Do I need that for something?
+    # essentialMtx2 = U.dot(np.diag((1.0,1.0,0.0))).dot(Vt)
+    # newNormalizedPoints1 =
+
+    P2_1 = np.hstack((R1, u3.reshape(3,1)))
+    P2_2 = np.hstack((R1, -u3.reshape(3,1)))
+    P2_3 = np.hstack((R2, u3.reshape(3,1)))
+    P2_4 = np.hstack((R2, -u3.reshape(3,1)))
+
+    for (idx, P2) in enumerate([P2_1, P2_2, P2_3, P2_4]):
+        print("Task5 # %d" % idx)
+        points3d = np.array([ compute3dPoint(P1, P2, points2d) for points2d in zip(normalizedPoints1, normalizedPoints2) ])
+        nonHomoPoints3d = (points3d.T / points3d[:,3]).T
+
+        pointsInFrontOfP1 = np.array([ p for p in nonHomoPoints3d if P1.dot(p)[2] > 0 ])
+        pointsInFrontOfP2 = np.array([ p for p in nonHomoPoints3d if P2.dot(p)[2] > 0 ])
+        print(len(pointsInFrontOfP1))
+        print(len(pointsInFrontOfP2))
+
+        renderPlyFile(nonHomoPoints3d, "pc%d.ply" % idx)
+        # renderPlyFile(pointsInFrontOfP1, "pc%d.ply" % idx)
 
 def run():
     pointsData = loadPointsData()
@@ -155,8 +233,6 @@ def run():
     task2(pointsData, pts_indices)
     task3(pointsData, pts_indices)
     task4(pointsData, pts_indices)
-
-    ### Task 5
-    # P1 = np.hstack((np.diag((1,1,1)), np.zeros(3).reshape(3,1)))
+    task5(pointsData, pts_indices)
 
 run()
