@@ -44,7 +44,7 @@ def rectifyImage(T1):
     flippedPoints = np.fliplr(heteroPoints)
     points4 = flippedPoints
 
-    scipy.ndimage.interpolation.h)
+    # scipy.ndimage.interpolation.h)
 
 
     # intrInv = np.linalg.inv(intrinsicMtx)
@@ -55,12 +55,12 @@ def rectifyImage(T1):
     # points3 = intrinsicMtx.dot(homopoints2.T)
     # points4 = from2Homogenous(points3.T)
     # points4 = np.fliplr(points4)
-    mappedPointsR = scipy.ndimage.map_coordinates(imager, points4.T, order=3).reshape(imageShape)
-    mappedPointsG = scipy.ndimage.map_coordinates(imageg, points4.T, order=3).reshape(imageShape)
-    mappedPointsB = scipy.ndimage.map_coordinates(imageb, points4.T, order=3).reshape(imageShape)
+    mappedPointsR = sc.ndimage.map_coordinates(imager, points4.T, order=3).reshape(imageShape)
+    mappedPointsG = sc.ndimage.map_coordinates(imageg, points4.T, order=3).reshape(imageShape)
+    mappedPointsB = sc.ndimage.map_coordinates(imageb, points4.T, order=3).reshape(imageShape)
     newimage = np.stack((mappedPointsR, mappedPointsG, mappedPointsB), axis=-1)
 
-    scipy.misc.imsave(mkPath(filename, "-correctedimage"), newimage)
+    sc.misc.imsave(mkPath(filename, "-correctedimage"), newimage)
 
 
 def rectify(Po1Tld, Po2Tld):
