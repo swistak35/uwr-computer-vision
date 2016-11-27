@@ -233,7 +233,7 @@ def task5(pointsData, pts_indices):
 
         renderPlyFile(nonHomoPoints3d, "pc%d.ply" % idx)
 
-    print("And the best camera is: %d" % idx)
+    print("And the best camera is: %d" % bestCamera)
     P2 = cameras[bestCamera]
     points3d = np.array([ compute3dPoint(P1, P2, points2d) for points2d in zip(normalizedPoints1, normalizedPoints2) ])
     nonHomoPoints3d = (points3d.T / points3d[:,3]).T
