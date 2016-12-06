@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 import os.path
 from matplotlib import pyplot as plt
+from plyfile import PlyData, PlyElement
 
 np.set_printoptions(threshold=np.nan)
 
@@ -13,6 +14,14 @@ DEBUG = True
 def debug(arg):
     if DEBUG:
         print(arg)
+
+def renderPlyFile(XX, filename):
+    if len(XX) > 0:
+        points = np.array(zip(XX[:,0].ravel(), XX[:,1].ravel(), XX[:,2].ravel()),dtype=[('x','f4'), ('y','f4'),('z', 'f4')])
+        el = PlyElement.describe(points, 'vertex')
+        PlyData([el]).write(filename)
+    else:
+        print("Nothing rendered into file '%s' because points set was empty" % filename)
 
 def KRTfromP(P):
     "given P decomposes it into K,R, and T"
@@ -38,7 +47,7 @@ def matrix_applier(coords, mtx):
 
 def computeNeededShape(imageShape, mtx):
     (height, width) = imageShape
-    print(imageShape)
+    debug(imageShape)
     cornerTopLeft = np.asarray([0.0, 0.0, 1.0])
     cornerTopRight = np.asarray([width, 0.0, 1.0])
     cornerBottomLeft = np.asarray([0.0, height, 1.0])
@@ -75,18 +84,16 @@ def rectifyImage(T1):
     heteroPoints = from2Homogenous(transformedHomoR)
 
     newImageShape = computeNeededShape(imageShape, T1)
-    print("newImageShape")
-    print(newImageShape)
+    debug("newImageShape")
+    debug(newImageShape)
 
     xMin, yMin = np.amin(heteroPoints, axis = 0)
     xMax, yMax = np.amax(heteroPoints, axis = 0)
-    print(xMin, yMin)
-    print(xMax, yMax)
+    debug((xMin, yMin))
+    debug((xMax, yMax))
 
     flippedPoints = np.fliplr(heteroPoints)
     points4 = flippedPoints
-
-    # scipy.ndimage.interpolation.h)
 
     cx,cy = np.meshgrid(np.arange(newImageShape[1]), np.arange(newImageShape[0]))
     r = np.stack((cx,cy), axis=2).transpose((1, 0, 2)).reshape((-1,2))
@@ -97,21 +104,21 @@ def rectifyImage(T1):
 
 
     T1inv = np.linalg.inv(T1)
-    print(imager.shape)
+    debug(imager.shape)
     mappedPointsR = sc.ndimage.interpolation.geometric_transform(imager, matrix_applier, output = o, output_shape = newImageShape, extra_arguments=(T1inv,))
-    print(mappedPointsR)
+    debug(mappedPointsR)
 
     coords = (0, 0)
     homor = T1inv.dot(np.array([coords[1], coords[0], 1.0]))
     homor = homor / homor[2]
-    print ("== (0,0) transformed to:")
-    print (homor[1], homor[0])
+    debug("== (0,0) transformed to:")
+    debug((homor[1], homor[0]))
 
     coords = (0, 0)
     homor = T1.dot(np.array([coords[1], coords[0], 1.0]))
     homor = homor / homor[2]
-    print ("== (0,0) transformed to:")
-    print (homor[1], homor[0])
+    debug("== (0,0) transformed to:")
+    debug((homor[1], homor[0]))
 
     # intrInv = np.linalg.inv(intrinsicMtx)
     # normalizedHomopoints = intrInv.dot(endhomor.T)
@@ -127,10 +134,6 @@ def rectifyImage(T1):
     # newimage = np.stack((mappedPointsR, mappedPointsG, mappedPointsB), axis=-1)
 
     sc.misc.imsave(mkPath(filename, "-correctedimage"), o)
-
-baseline = None
-focalX = None
-focalY = None
 
 def rectify(Po1Tld, Po2Tld):
     Po1 = Po1Tld[:,0:3]
@@ -160,81 +163,11 @@ def rectify(Po1Tld, Po2Tld):
     T1 = Pn1[:,0:3].dot(np.linalg.inv(Po1))
     T2 = Pn2[:,0:3].dot(np.linalg.inv(Po2))
 
-    # print("Distance between two camera centres:")
-    # baseline = np.linalg.norm(Tn1 - Tn2)
-    # print(baseline)
-    # print(Ko1)
-    # print(Ko2)
-    # focalX = Ko1[0,0]
-    # focalY = Ko1[1,1]
+    baselineLength = np.linalg.norm(Tn1 - Tn2)
 
-    # print("Skew: %f" % Ko1[0,1])
+    return (Pn1, Pn2, T1, T2, Kn, baselineLength)
 
-
-    return (Pn1, Pn2, T1, T2)
-
-def task12():
-    print("=== Task 1")
-    Po1Tld = sc.io.loadmat("data/Sport_cam.mat")['pml']
-    Po2Tld = sc.io.loadmat("data/Sport_cam.mat")['pmr']
-
-    Pn1, Pn2, T1, T2 = rectify(Po1Tld, Po2Tld)
-    print("== Pn1")
-    print(Pn1)
-    print("== Pn2")
-    print(Pn2)
-    print("== T1")
-    print(T1)
-    print("== T2")
-    print(T2)
-
-
-    rectifyImage(T1)
-
-def task3():
-    imgL = cv2.imread("data/rectified/Sport_R_0.png", 0)
-    imgR = cv2.imread("data/rectified/Sport_R_1.png", 0)
-
-    # window_size = 3
-    # min_disp = 16
-    # num_disp = 112-min_disp
-    # stereo = cv2.StereoSGBM_create(
-    #     minDisparity = min_disp,
-    #     numDisparities = num_disp,
-    #     blockSize = 16,
-    #     P1 = 8*3*window_size**2,
-    #     P2 = 32*3*window_size**2,
-    #     disp12MaxDiff = 1,
-    #     uniquenessRatio = 10,
-    #     speckleWindowSize = 100,
-    #     speckleRange = 32
-    # )
-    # possible_numDisparities = [16, 32, 48, 64, 80, 96, 112, 128, 144, 160]
-    # possible_blockSize = [5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29]
-
-    # 144 / 160 i 13 byly znosne
-    # for c_numDisparity in possible_numDisparities:
-    #     for c_blockSize in possible_blockSize:
-    #         print("numDisparities=%d blockSize=%d" % (c_numDisparity, c_blockSize))
-    #         stereo = cv2.StereoBM_create(numDisparities=c_numDisparity, blockSize=c_blockSize)
-    #         disp = stereo.compute(imgL, imgR) / 16 #.astype(np.float32) #.astype(np.float32) #/ 16.0
-    #         # print(disp)
-    #         # cv2.imshow('disparity', disp)
-    #         # cv2.waitKey()
-    #         plt.imshow(disp,'gray')
-    #         plt.show()
-    # cv2.imshow('left', imgL)
-    # cv2.imshow('disparity', disparity / 16.0 )
-
-    # stereo = cv2.StereoBM_create(numDisparities=144, blockSize=13)
-    # disp = stereo.compute(imgL, imgR) * 16 #/ 16.0 #.astype(np.float32) #.astype(np.float32) #/ 16.0
-    # print(np.amin(imgL))
-    # print(np.amax(imgL))
-    # print(disp.dtype)
-    # # print imgL
-    # cv2.imshow('disparity', disp.astype(np.float32) / np.amax(disp))
-    # cv2.waitKey()
-
+def computeDisparity():
     imgL = cv2.imread("data/rectified/Sport_R_0.png", 1)
     imgR = cv2.imread("data/rectified/Sport_R_1.png", 1)
 
@@ -244,39 +177,50 @@ def task3():
         blockSize = 13,
         P1 = 2048,
         P2 = 8192,
-        # disp12MaxDiff = 1,
-        # uniquenessRatio = 10,
         speckleWindowSize = 125,
         speckleRange = 3,
-        # fullDP = True
     )
     disp = stereo.compute(imgL, imgR)
+    return disp
 
-    imgL = cv2.imread("data/rectified/Sport_R_0.png", 1)
-    imgR = cv2.imread("data/rectified/Sport_R_1.png", 1)
+def run():
+    print("=== Task 1")
+    Po1Tld = sc.io.loadmat("data/Sport_cam.mat")['pml']
+    Po2Tld = sc.io.loadmat("data/Sport_cam.mat")['pmr']
 
-    stereo2 = cv2.StereoSGBM_create(
-        minDisparity = 32,
-        numDisparities = 144,
-        blockSize = 13,
-        P1 = 2048,
-        P2 = 8192,
-        # disp12MaxDiff = 1,
-        # uniquenessRatio = 10,
-        speckleWindowSize = 125,
-        speckleRange = 3,
-        # fullDP = True
-    )
-    disp2 = stereo2.compute(imgL, imgR)
+    Pn1, Pn2, T1, T2, Kn, baselineLength = rectify(Po1Tld, Po2Tld)
+    print("== Pn1")
+    print(Pn1)
+    print("== Pn2")
+    print(Pn2)
+    print("== T1")
+    print(T1)
+    print("== T2")
+    print(T2)
+
+    print("=== Task 2")
+    rectifyImage(T1)
+
+    print("=== Task 3")
+    disp = computeDisparity()
+
     # print(np.amin(disp))
     # print(np.amax(disp))
     cv2.imshow('disparity', disp.astype(np.float32) / np.amax(disp))
-    cv2.imshow('disparity2', disp2.astype(np.float32) / np.amax(disp2))
     cv2.waitKey()
 
+    print("=== Task 4")
+    focalX = Kn[0,0]
+    depth = np.full(disp.shape, baselineLength * focalX) / disp
 
-def run():
-    # task12()
-    task3()
+    cx,cy = np.meshgrid(np.arange(depth.shape[0]), np.arange(depth.shape[1]))
+    r = np.stack((cx,cy), axis=2).transpose((1, 0, 2)).reshape((-1,2))
+    r = np.fliplr(r)
+    r2 = np.array([ (x, y, depth[y,x]) for (x,y) in r ])
+
+    KnInv = np.linalg.inv(Kn)
+    normalizedPoints = KnInv.dot(r2.T).T
+    renderPlyFile(normalizedPoints, "pc.ply")
+
 
 run()
