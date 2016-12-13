@@ -11,6 +11,7 @@ import Image, ImageDraw
 ALPHA = 0.05
 WINDOW_SIZE = 3 # window will be windowSize*2 + 1
 TRESHOLD = 10000
+SEARCH_SIZE = 5
 
 # Questions:
 # How to set the threshold? Some value like 95% percentile?
@@ -54,44 +55,7 @@ def drawCorners(filename, points, suffix):
     # print([response1, response2])
     # return response2
 
-filename = "data/Notre Dame/1_o.jpg"
-image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
-
-imageGaussian0 = sc.ndimage.filters.gaussian_filter1d(image, 1.0, order = 1, axis = 0)
-imageGaussian1 = sc.ndimage.filters.gaussian_filter1d(image, 1.0, order = 1, axis = 1)
-
-sc.misc.imsave(mkPath(filename, "-1-gauss-derivative-0"), imageGaussian0)
-sc.misc.imsave(mkPath(filename, "-2-gauss-derivative-1"), imageGaussian1)
-
-result = np.zeros(image.shape)
-
-ixix = imageGaussian0 * imageGaussian0
-ixiy = imageGaussian0 * imageGaussian1
-iyiy = imageGaussian1 * imageGaussian1
-
-sc.misc.imsave(mkPath(filename, "-3-ixix"), ixix)
-sc.misc.imsave(mkPath(filename, "-4-ixiy"), ixiy)
-sc.misc.imsave(mkPath(filename, "-5-iyiy"), iyiy)
-
-gixix = sc.ndimage.filters.gaussian_filter(ixix, sigma = 1.0)
-gixiy = sc.ndimage.filters.gaussian_filter(ixiy, sigma = 1.0)
-giyiy = sc.ndimage.filters.gaussian_filter(iyiy, sigma = 1.0)
-
-sc.misc.imsave(mkPath(filename, "-6-gixix"), gixix)
-sc.misc.imsave(mkPath(filename, "-7-gixiy"), gixiy)
-sc.misc.imsave(mkPath(filename, "-8-giyiy"), giyiy)
-
-print("=== Computing response values...")
-for y in range(WINDOW_SIZE, image.shape[0] - WINDOW_SIZE):
-    print(y)
-    for x in range(WINDOW_SIZE, image.shape[1] - WINDOW_SIZE):
-        # result[y][x] = computeResponseValue((x, y), ixix, ixiy, iyiy)
-        result[y][x] = gixix[y][x]*giyiy[y][x] - gixiy[y][x]*gixiy[y][x] - ALPHA * np.power(gixix[y][x] + giyiy[y][x], 2)
-
 def filter_maxima(corners, result):
-    SEARCH_SIZE = 5
-    # fullsearchsize = np.power(SEARCH_SIZE * 2 + 1, 2)
-    # sortedCorners = corners[corners[:,2].argsort()]
     maximas = []
     for (y, x) in corners:
         top = np.max([y - SEARCH_SIZE, 0])
@@ -101,28 +65,55 @@ def filter_maxima(corners, result):
         window = result[top:bottom,left:right]
         if result[y,x] == np.max(window):
             maximas.append((y,x))
-    # for i in reversed(xrange(len(sortedCorners))):
-    #     first = i - fullsearchsize
-    #     first = 0 if first < 0 else first
-    #     close_enough = []
-    #     for p in corners[first:i]:
-    #         if np.linalg.norm(p[0:2] - corners[i][0:2]) < SEARCH_SIZE:
-    #             close_enough.append(p)
-    #     if close_enough == []:
-    #         maximas.append(corners[i])
     return np.array(maximas)
 
-print("Finding maximas...")
-corners = np.argwhere(result > TRESHOLD)
-# values = result[tuple(corners.T)]
-# cornersWithValues = np.hstack((corners, values[:,None]))
-maximaCorners = filter_maxima(corners, result)
-print("Filtered from %d to %d points" % (len(corners), len(maximaCorners)))
+def harrisCornerDetector(filename, gaussianDerivativeSigma = 1.0, gaussianFilterSigma = 1.0):
+    image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
 
-drawCorners(filename, maximaCorners, "-9-with-corners")
+    imageGaussian0 = sc.ndimage.filters.gaussian_filter1d(image, gaussianDerivativeSigma, order = 1, axis = 0)
+    imageGaussian1 = sc.ndimage.filters.gaussian_filter1d(image, gaussianDerivativeSigma, order = 1, axis = 1)
 
-# maximumValue = np.amax(result)
-# sc.misc.imsave(mkPath(filename, "-heat-map1"), result)
+    sc.misc.imsave(mkPath(filename, "-1x-gauss-derivative-0"), imageGaussian0)
+    sc.misc.imsave(mkPath(filename, "-1y-gauss-derivative-1"), imageGaussian1)
 
-# result = result / maximumValue
-# sc.misc.imsave(mkPath(filename, "-heat-map2"), result)
+    result = np.zeros(image.shape)
+
+    ixix = imageGaussian0 * imageGaussian0
+    ixiy = imageGaussian0 * imageGaussian1
+    iyiy = imageGaussian1 * imageGaussian1
+
+    sc.misc.imsave(mkPath(filename, "-2-ixix"), ixix)
+    sc.misc.imsave(mkPath(filename, "-2-ixiy"), ixiy)
+    sc.misc.imsave(mkPath(filename, "-2-iyiy"), iyiy)
+
+    gixix = sc.ndimage.filters.gaussian_filter(ixix, sigma = gaussianFilterSigma)
+    gixiy = sc.ndimage.filters.gaussian_filter(ixiy, sigma = gaussianFilterSigma)
+    giyiy = sc.ndimage.filters.gaussian_filter(iyiy, sigma = gaussianFilterSigma)
+
+    sc.misc.imsave(mkPath(filename, "-3-gixix"), gixix)
+    sc.misc.imsave(mkPath(filename, "-3-gixiy"), gixiy)
+    sc.misc.imsave(mkPath(filename, "-3-giyiy"), giyiy)
+
+    print("=== Computing response values...")
+    for y in range(WINDOW_SIZE, image.shape[0] - WINDOW_SIZE):
+        print(y)
+        for x in range(WINDOW_SIZE, image.shape[1] - WINDOW_SIZE):
+            # result[y][x] = computeResponseValue((x, y), ixix, ixiy, iyiy)
+            result[y][x] = gixix[y][x]*giyiy[y][x] - gixiy[y][x]*gixiy[y][x] - ALPHA * np.power(gixix[y][x] + giyiy[y][x], 2)
+
+    heatMap = np.log(np.where(result < 1, np.ones(result.shape), result))
+    sc.misc.imsave(mkPath(filename, "-4-heat-map"), heatMap)
+
+    print("Finding maximas...")
+    corners = np.argwhere(result > TRESHOLD)
+    maximaCorners = filter_maxima(corners, result)
+    print("Filtered from %d to %d points" % (len(corners), len(maximaCorners)))
+
+    drawCorners(filename, maximaCorners, "-5-with-corners")
+
+
+def run():
+    filename = "data/Notre Dame/1_o.jpg"
+    harrisCornerDetector(filename)
+
+run()
