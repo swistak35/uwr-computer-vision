@@ -9,7 +9,7 @@ from plyfile import PlyData, PlyElement
 
 np.set_printoptions(threshold=np.nan)
 
-DEBUG = True
+DEBUG = False
 
 def debug(arg):
     if DEBUG:
@@ -61,15 +61,7 @@ def computeNeededShape(imageShape, mtx):
 
     return (ySpan.astype(np.int32), xSpan.astype(np.int32))
 
-def rectifyImage(T1):
-
-    # T1 = np.array([
-    #         [  9.34320999e-01,  -1.76269837e-02,   9.08629969e+00],
-    #         [ -2.61206725e-02,   9.99853303e-01,  -1.65948291e+01],
-    #         [ -1.48091221e-04,   6.28016064e-11,   1.06958634e+00]
-    #     ])
-
-    filename = "data/Sport0.png"
+def rectifyImage(filename, T1):
     image = scipy.ndimage.imread(filename)
     cx,cy = np.meshgrid(np.arange(image.shape[0]), np.arange(image.shape[1]))
     r = np.stack((cx,cy), axis=2).transpose((1, 0, 2)).reshape((-1,2))
@@ -79,29 +71,11 @@ def rectifyImage(T1):
     imageb = image[:,:,2]
     imageShape = image.shape[0:2]
 
-    homor = toHomogenous(r)
-    transformedHomoR = T1.dot(homor.T).T
-    heteroPoints = from2Homogenous(transformedHomoR)
-
     newImageShape = computeNeededShape(imageShape, T1)
     debug("newImageShape")
     debug(newImageShape)
 
-    xMin, yMin = np.amin(heteroPoints, axis = 0)
-    xMax, yMax = np.amax(heteroPoints, axis = 0)
-    debug((xMin, yMin))
-    debug((xMax, yMax))
-
-    flippedPoints = np.fliplr(heteroPoints)
-    points4 = flippedPoints
-
-    cx,cy = np.meshgrid(np.arange(newImageShape[1]), np.arange(newImageShape[0]))
-    r = np.stack((cx,cy), axis=2).transpose((1, 0, 2)).reshape((-1,2))
-    r = np.fliplr(r)
-    # homor = toHomogenous(r)
-
     o = np.arange(newImageShape[0] * newImageShape[1]).reshape(newImageShape)
-
 
     T1inv = np.linalg.inv(T1)
     debug(imager.shape)
@@ -119,19 +93,6 @@ def rectifyImage(T1):
     homor = homor / homor[2]
     debug("== (0,0) transformed to:")
     debug((homor[1], homor[0]))
-
-    # intrInv = np.linalg.inv(intrinsicMtx)
-    # normalizedHomopoints = intrInv.dot(endhomor.T)
-    # projectedPoints = from2Homogenous(normalizedHomopoints.T)
-    # correctedPoints = undistortedPoints(projectedPoints, distortion)
-    # homopoints2 = toHomogenous(correctedPoints)
-    # points3 = intrinsicMtx.dot(homopoints2.T)
-    # points4 = from2Homogenous(points3.T)
-    # points4 = np.fliplr(points4)
-    # mappedPointsR = sc.ndimage.map_coordinates(imager, points4.T, order=3).reshape(imageShape)
-    # mappedPointsG = sc.ndimage.map_coordinates(imageg, points4.T, order=3).reshape(imageShape)
-    # mappedPointsB = sc.ndimage.map_coordinates(imageb, points4.T, order=3).reshape(imageShape)
-    # newimage = np.stack((mappedPointsR, mappedPointsG, mappedPointsB), axis=-1)
 
     sc.misc.imsave(mkPath(filename, "-correctedimage"), o)
 
@@ -199,7 +160,8 @@ def run():
     print(T2)
 
     print("=== Task 2")
-    rectifyImage(T1)
+    rectifyImage("data/Sport0.png", T1)
+    rectifyImage("data/Sport1.png", T2)
 
     print("=== Task 3")
     disp = computeDisparity()
@@ -209,18 +171,18 @@ def run():
     cv2.imshow('disparity', disp.astype(np.float32) / np.amax(disp))
     cv2.waitKey()
 
-    print("=== Task 4")
-    focalX = Kn[0,0]
-    depth = np.full(disp.shape, baselineLength * focalX) / disp
+    # print("=== Task 4")
+    # focalX = Kn[0,0]
+    # depth = np.full(disp.shape, baselineLength * focalX) / disp
 
-    cx,cy = np.meshgrid(np.arange(depth.shape[0]), np.arange(depth.shape[1]))
-    r = np.stack((cx,cy), axis=2).transpose((1, 0, 2)).reshape((-1,2))
-    r = np.fliplr(r)
-    r2 = np.array([ (x, y, depth[y,x]) for (x,y) in r ])
+    # cx,cy = np.meshgrid(np.arange(depth.shape[0]), np.arange(depth.shape[1]))
+    # r = np.stack((cx,cy), axis=2).transpose((1, 0, 2)).reshape((-1,2))
+    # r = np.fliplr(r)
+    # r2 = np.array([ (x, y, depth[y,x]) for (x,y) in r ])
 
-    KnInv = np.linalg.inv(Kn)
-    normalizedPoints = KnInv.dot(r2.T).T
-    renderPlyFile(normalizedPoints, "pc.ply")
+    # KnInv = np.linalg.inv(Kn)
+    # normalizedPoints = KnInv.dot(r2.T).T
+    # renderPlyFile(normalizedPoints, "pc.ply")
 
 
 run()
