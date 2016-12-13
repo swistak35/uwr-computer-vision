@@ -15,6 +15,7 @@ SEARCH_SIZE = 5
 
 # Questions:
 # How to set the threshold? Some value like 95% percentile?
+# Why are we doing the second gaussian? We we do not need to calculate a sum per each pixel point?
 
 def mkPath(filename, suffix):
     basePath, extPath = os.path.splitext(filename)
@@ -95,11 +96,12 @@ def harrisCornerDetector(filename, gaussianDerivativeSigma = 1.0, gaussianFilter
     sc.misc.imsave(mkPath(filename, "-3-giyiy"), giyiy)
 
     print("=== Computing response values...")
-    for y in range(WINDOW_SIZE, image.shape[0] - WINDOW_SIZE):
-        print(y)
-        for x in range(WINDOW_SIZE, image.shape[1] - WINDOW_SIZE):
-            # result[y][x] = computeResponseValue((x, y), ixix, ixiy, iyiy)
-            result[y][x] = gixix[y][x]*giyiy[y][x] - gixiy[y][x]*gixiy[y][x] - ALPHA * np.power(gixix[y][x] + giyiy[y][x], 2)
+    # for y in range(WINDOW_SIZE, image.shape[0] - WINDOW_SIZE):
+    #     print(y)
+    #     for x in range(WINDOW_SIZE, image.shape[1] - WINDOW_SIZE):
+    #         # result[y][x] = computeResponseValue((x, y), ixix, ixiy, iyiy)
+    #         result[y][x] = gixix[y][x]*giyiy[y][x] - gixiy[y][x]*gixiy[y][x] - ALPHA * np.power(gixix[y][x] + giyiy[y][x], 2)
+    result = gixix*giyiy - gixiy*gixiy - ALPHA * np.power(gixix + giyiy, 2)
 
     heatMap = np.log(np.where(result < 1, np.ones(result.shape), result))
     sc.misc.imsave(mkPath(filename, "-4-heat-map"), heatMap)
@@ -113,7 +115,15 @@ def harrisCornerDetector(filename, gaussianDerivativeSigma = 1.0, gaussianFilter
 
 
 def run():
-    filename = "data/Notre Dame/1_o.jpg"
-    harrisCornerDetector(filename)
+    filenames = [
+            "data/Notre Dame/1_o.jpg",
+            "data/Notre Dame/2_o.jpg",
+            "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
+            "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
+            "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
+            "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
+        ]
+    for filename in filenames:
+        harrisCornerDetector(filename)
 
 run()
