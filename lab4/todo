@@ -1,0 +1,6 @@
+Task 2:
+Zamiast szukania N lokalnych maksymów:
+
+Weź każdy punkt który jest > treshold.
+Znajdź jaki jest jego "surpression radius", czyli jaka jest odległość do najbliższego punktu Y, dla którego punkt X nie spełnia 0.9*resp(X) > resp(Y)
+Posortuj punkty wg surpression radius, weź N największych. Być może warto sprawdzać powyższy warunek tylko do jakiejś sensownej granicy, nie chcemy lecieć przez cały obrazek.

@@ -10,11 +10,10 @@ import Image, ImageDraw
 
 ALPHA = 0.05
 WINDOW_SIZE = 3 # window will be windowSize*2 + 1
-TRESHOLD = 10000
+TRESHOLD = 1000
 SEARCH_SIZE = 5
 
 # Questions:
-# How to set the threshold? Some value like 95% percentile?
 # Why are we doing the second gaussian? We we do not need to calculate a sum per each pixel point?
 
 def mkPath(filename, suffix):
@@ -32,30 +31,6 @@ def drawCorners(filename, points, suffix):
         drawSmallCircle(draw, y, x, width = 6)
     im.save(mkPath(filename, suffix), "JPEG")
 
-# def computeResponseValue(coords, ixix, ixiy, iyiy):
-#     (x, y) = coords
-#     mtx00 = np.sum(ixix[(y-WINDOW_SIZE):(y+WINDOW_SIZE+1),(x-WINDOW_SIZE):(x+WINDOW_SIZE+1)])
-#     mtx01 = np.sum(ixiy[(y-WINDOW_SIZE):(y+WINDOW_SIZE+1),(x-WINDOW_SIZE):(x+WINDOW_SIZE+1)])
-#     mtx11 = np.sum(iyiy[(y-WINDOW_SIZE):(y+WINDOW_SIZE+1),(x-WINDOW_SIZE):(x+WINDOW_SIZE+1)])
-#     secondMomentMatrix = np.array([[ mtx00, mtx01 ], [ mtx01, mtx11 ]])
-    # secondMomentMatrix = np.zeros(4).reshape(2,2)
-    # for yd in range(-WINDOW_SIZE, WINDOW_SIZE+1):
-    #     for xd in range(-WINDOW_SIZE, WINDOW_SIZE+1):
-    #         ix = imgGauss0[y + yd][x + xd] # Are these used in correct order?
-    #         iy = imgGauss1[y + yd][x + xd]
-    #         secondMomentMatrix[0][0] += ix * ix
-    #         secondMomentMatrix[0][1] += ix * iy
-    #         secondMomentMatrix[1][0] += ix * iy
-    #         secondMomentMatrix[1][1] += iy * iy
-    # eigvals = np.linalg.eigvals(secondMomentMatrix)
-    # print("Eigvals:")
-    # print(eigvals)
-    # response1 = eigvals[0] * eigvals[1] - ALPHA * np.power(eigvals[0] + eigvals[1], 2)
-    # response2 = np.linalg.det(secondMomentMatrix) - ALPHA * np.power(np.trace(secondMomentMatrix), 2)
-    # print("Responses:")
-    # print([response1, response2])
-    # return response2
-
 def filter_maxima(corners, result):
     maximas = []
     for (y, x) in corners:
@@ -68,7 +43,18 @@ def filter_maxima(corners, result):
             maximas.append((y,x))
     return np.array(maximas)
 
-def harrisCornerDetector(filename, gaussianDerivativeSigma = 1.0, gaussianFilterSigma = 1.0):
+def anms_filter(cornersPositions, result):
+    maximas = []
+    cornerValues = result[tuple(cornersPositions.T)]
+    corners = np.hstack((corners, cornerValues[:,None]))
+    # Potem mozna te liste posortowac i wiemy ze po prostu musimy brac ja cala od gory
+    # for (y, x) in corners:
+
+
+    return np.array(maximas)
+
+
+def harrisCornerDetector(filename, gaussianDerivativeSigma = 3.0, gaussianFilterSigma = 3.0):
     image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
 
     imageGaussian0 = sc.ndimage.filters.gaussian_filter1d(image, gaussianDerivativeSigma, order = 1, axis = 0)
@@ -111,7 +97,11 @@ def harrisCornerDetector(filename, gaussianDerivativeSigma = 1.0, gaussianFilter
     maximaCorners = filter_maxima(corners, result)
     print("Filtered from %d to %d points" % (len(corners), len(maximaCorners)))
 
+    maximaCornersAnms = anms_filter(corners, result)
+    print("Filtered from %d to %d points" % (len(corners), len(maximaCornersAnms)))
+
     drawCorners(filename, maximaCorners, "-5-with-corners")
+    drawCorners(filename, maximaCornersAnms, "-5-with-corners-anms")
 
 
 def run():
@@ -124,6 +114,7 @@ def run():
             "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
         ]
     for filename in filenames:
+        print("=== File: %s" % filename)
         harrisCornerDetector(filename)
 
-run()
+# run()
