@@ -47,6 +47,15 @@ def anms_filter(cornersPositions, result):
     maximas = []
     cornerValues = result[tuple(cornersPositions.T)]
     corners = np.hstack((corners, cornerValues[:,None]))
+    cornersSorted = corners[corners[:,2].argsort()][::-1]
+    cornersRadiuses = []
+    # NOTE: If radius == 0.0, then it's infinity! (?)
+    for (index, p) in enumerate(cornersSorted):
+        print("index = %d" % index)
+        bigger = cornersSorted[0:index]
+        r = np.linalg.norm(bigger[:,0:2] - p[0:2])
+        cornersRadiuses.append(r)
+    cornersRadiuses = np.array(cornersRadiuses)
     # Potem mozna te liste posortowac i wiemy ze po prostu musimy brac ja cala od gory
     # for (y, x) in corners:
 
@@ -82,18 +91,13 @@ def harrisCornerDetector(filename, gaussianDerivativeSigma = 3.0, gaussianFilter
     sc.misc.imsave(mkPath(filename, "-3-giyiy"), giyiy)
 
     print("=== Computing response values...")
-    # for y in range(WINDOW_SIZE, image.shape[0] - WINDOW_SIZE):
-    #     print(y)
-    #     for x in range(WINDOW_SIZE, image.shape[1] - WINDOW_SIZE):
-    #         # result[y][x] = computeResponseValue((x, y), ixix, ixiy, iyiy)
-    #         result[y][x] = gixix[y][x]*giyiy[y][x] - gixiy[y][x]*gixiy[y][x] - ALPHA * np.power(gixix[y][x] + giyiy[y][x], 2)
     result = gixix*giyiy - gixiy*gixiy - ALPHA * np.power(gixix + giyiy, 2)
 
     heatMap = np.log(np.where(result < 1, np.ones(result.shape), result))
     sc.misc.imsave(mkPath(filename, "-4-heat-map"), heatMap)
 
     print("Finding maximas...")
-    corners = np.argwhere(result > TRESHOLD)
+    cornersPositions = np.argwhere(result > TRESHOLD)
     maximaCorners = filter_maxima(corners, result)
     print("Filtered from %d to %d points" % (len(corners), len(maximaCorners)))
 
@@ -107,14 +111,14 @@ def harrisCornerDetector(filename, gaussianDerivativeSigma = 3.0, gaussianFilter
 def run():
     filenames = [
             "data/Notre Dame/1_o.jpg",
-            "data/Notre Dame/2_o.jpg",
-            "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
-            "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
-            "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
-            "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
+            # "data/Notre Dame/2_o.jpg",
+            # "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
+            # "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
+            # "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
+            # "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
         ]
     for filename in filenames:
         print("=== File: %s" % filename)
         harrisCornerDetector(filename)
 
-# run()
+run()
