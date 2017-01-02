@@ -46,21 +46,25 @@ def filter_maxima(corners, result):
 def anms_filter(cornersPositions, result):
     maximas = []
     cornerValues = result[tuple(cornersPositions.T)]
-    corners = np.hstack((corners, cornerValues[:,None]))
+    corners = np.hstack((cornersPositions, cornerValues[:,None]))
     cornersSorted = corners[corners[:,2].argsort()][::-1]
-    cornersRadiuses = []
     # NOTE: If radius == 0.0, then it's infinity! (?)
+    cornersRadiuses = []
     for (index, p) in enumerate(cornersSorted):
         print("index = %d" % index)
         bigger = cornersSorted[0:index]
-        r = np.linalg.norm(bigger[:,0:2] - p[0:2])
-        cornersRadiuses.append(r)
+        if np.any(bigger):
+            r = np.amin(np.linalg.norm(bigger[:,0:2] - p[0:2], axis = 1))
+            cornersRadiuses.append(r)
+        else:
+            cornersRadiuses.append(np.inf)
     cornersRadiuses = np.array(cornersRadiuses)
-    # Potem mozna te liste posortowac i wiemy ze po prostu musimy brac ja cala od gory
-    # for (y, x) in corners:
-
-
-    return np.array(maximas)
+    cornersWithRadiuses = np.hstack((cornersSorted, cornersRadiuses[:,None]))
+    cornersRadiusesSorted = cornersWithRadiuses[cornersWithRadiuses[:,3].argsort()][::-1]
+    # Brakuje tego ogranicznika na 0.9 wartosci wektora
+    # Moznaby najpierw zrobic zwykle filter_maxima, na jakies bliskie sasiedztwo, a dopiero potem ANMS - ale za to zmniejszyc threshold
+    # Dodac rysowanie promienia gdzie sa te punkty maximum
+    return cornersRadiusesSorted[0:100,0:2]
 
 
 def harrisCornerDetector(filename, gaussianDerivativeSigma = 3.0, gaussianFilterSigma = 3.0):
@@ -98,11 +102,11 @@ def harrisCornerDetector(filename, gaussianDerivativeSigma = 3.0, gaussianFilter
 
     print("Finding maximas...")
     cornersPositions = np.argwhere(result > TRESHOLD)
-    maximaCorners = filter_maxima(corners, result)
-    print("Filtered from %d to %d points" % (len(corners), len(maximaCorners)))
+    maximaCorners = filter_maxima(cornersPositions, result)
+    print("Filtered from %d to %d points" % (len(cornersPositions), len(maximaCorners)))
 
-    maximaCornersAnms = anms_filter(corners, result)
-    print("Filtered from %d to %d points" % (len(corners), len(maximaCornersAnms)))
+    maximaCornersAnms = anms_filter(cornersPositions, result)
+    print("Filtered from %d to %d points" % (len(cornersPositions), len(maximaCornersAnms)))
 
     drawCorners(filename, maximaCorners, "-5-with-corners")
     drawCorners(filename, maximaCornersAnms, "-5-with-corners-anms")
