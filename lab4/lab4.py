@@ -8,13 +8,10 @@ import PIL as pil
 import os.path
 import Image, ImageDraw
 
-ALPHA = 0.05
+ALPHA = 0.04
 WINDOW_SIZE = 3 # window will be windowSize*2 + 1
-TRESHOLD = 1000
-SEARCH_SIZE = 5
-
-# Questions:
-# Why are we doing the second gaussian? We we do not need to calculate a sum per each pixel point?
+TRESHOLD = 100
+ANMS_COEFFICIENT = 0.98
 
 def mkPath(filename, suffix):
     basePath, extPath = os.path.splitext(filename)
@@ -31,40 +28,49 @@ def drawCorners(filename, points, suffix):
         drawSmallCircle(draw, y, x, width = 6)
     im.save(mkPath(filename, suffix), "JPEG")
 
-def filter_maxima(corners, result):
+def drawCornersWithRadius(filename, points, suffix):
+    im = Image.open(filename)
+    draw = ImageDraw.Draw(im)
+    for (x,y,r) in points:
+        drawSmallCircle(draw, y, x, width = r)
+        drawSmallCircle(draw, y, x, outlineColor = (255, 0, 0), width = 3)
+    im.save(mkPath(filename, suffix), "JPEG")
+
+def filter_maxima(corners, result, span = 5, coefficient = 1.0):
     maximas = []
     for (y, x) in corners:
-        top = np.max([y - SEARCH_SIZE, 0])
-        bottom = np.min([y + SEARCH_SIZE + 1, result.shape[0] - 1])
-        left = np.max([x - SEARCH_SIZE, 0])
-        right = np.min([x + SEARCH_SIZE + 1, result.shape[1] - 1])
+        v = result[y,x] * coefficient
+        top = np.max([y - span, 0])
+        bottom = np.min([y + span + 1, result.shape[0] - 1])
+        left = np.max([x - span, 0])
+        right = np.min([x + span + 1, result.shape[1] - 1])
         window = result[top:bottom,left:right]
-        if result[y,x] == np.max(window):
+        if np.sum(window >= v) <= 1:
             maximas.append((y,x))
     return np.array(maximas)
 
-def anms_filter(cornersPositions, result):
+def anms_filter(unfilteredCornersPositions, result):
     maximas = []
+    cornersPositions = filter_maxima(unfilteredCornersPositions, result, span = 1, coefficient = 0.98)
+    print("Initial pre-ANMS filtered from %d to %d points" % (len(unfilteredCornersPositions), len(cornersPositions)))
     cornerValues = result[tuple(cornersPositions.T)]
     corners = np.hstack((cornersPositions, cornerValues[:,None]))
     cornersSorted = corners[corners[:,2].argsort()][::-1]
-    # NOTE: If radius == 0.0, then it's infinity! (?)
     cornersRadiuses = []
     for (index, p) in enumerate(cornersSorted):
-        print("index = %d" % index)
-        bigger = cornersSorted[0:index]
-        if np.any(bigger):
-            r = np.amin(np.linalg.norm(bigger[:,0:2] - p[0:2], axis = 1))
+        v = p[2] * ANMS_COEFFICIENT
+        bigger = cornersSorted[cornersSorted[:,2] > v]
+        if bigger.shape[0] > 1:
+            r = np.partition(np.linalg.norm(bigger[:,0:2] - p[0:2], axis = 1), 1)[1]
             cornersRadiuses.append(r)
         else:
             cornersRadiuses.append(np.inf)
     cornersRadiuses = np.array(cornersRadiuses)
     cornersWithRadiuses = np.hstack((cornersSorted, cornersRadiuses[:,None]))
     cornersRadiusesSorted = cornersWithRadiuses[cornersWithRadiuses[:,3].argsort()][::-1]
-    # Brakuje tego ogranicznika na 0.9 wartosci wektora
-    # Moznaby najpierw zrobic zwykle filter_maxima, na jakies bliskie sasiedztwo, a dopiero potem ANMS - ale za to zmniejszyc threshold
-    # Dodac rysowanie promienia gdzie sa te punkty maximum
-    return cornersRadiusesSorted[0:100,0:2]
+    # print(cornersRadiusesSorted[0:20])
+    # print(np.sum(cornersRadiusesSorted[:,3] > 1.44))
+    return cornersRadiusesSorted[0:100,(0,1,3)]
 
 
 def harrisCornerDetector(filename, gaussianDerivativeSigma = 3.0, gaussianFilterSigma = 3.0):
@@ -102,24 +108,27 @@ def harrisCornerDetector(filename, gaussianDerivativeSigma = 3.0, gaussianFilter
 
     print("Finding maximas...")
     cornersPositions = np.argwhere(result > TRESHOLD)
-    maximaCorners = filter_maxima(cornersPositions, result)
+    maximaCorners = filter_maxima(cornersPositions, result, span = 5)
     print("Filtered from %d to %d points" % (len(cornersPositions), len(maximaCorners)))
 
+    import time
+    t1 = time.time()
     maximaCornersAnms = anms_filter(cornersPositions, result)
-    print("Filtered from %d to %d points" % (len(cornersPositions), len(maximaCornersAnms)))
+    t2 = time.time()
+    print("Filtered from %d to %d points in %f seconds" % (len(cornersPositions), len(maximaCornersAnms), (t2 - t1)))
 
     drawCorners(filename, maximaCorners, "-5-with-corners")
-    drawCorners(filename, maximaCornersAnms, "-5-with-corners-anms")
+    drawCornersWithRadius(filename, maximaCornersAnms, "-5-with-corners-anms")
 
 
 def run():
     filenames = [
             "data/Notre Dame/1_o.jpg",
-            # "data/Notre Dame/2_o.jpg",
-            # "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
-            # "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
-            # "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
-            # "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
+            "data/Notre Dame/2_o.jpg",
+            "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
+            "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
+            "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
+            "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
         ]
     for filename in filenames:
         print("=== File: %s" % filename)
