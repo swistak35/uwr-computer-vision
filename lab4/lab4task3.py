@@ -14,6 +14,8 @@ scalesPerOctave = 3
 sigma = 1.6
 k = np.power(2, 1.0 / scalesPerOctave)
 
+# How to draw the circle based on the sigma?
+
 def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = (0, 255, 0), width = 2):
 #     # Top left and bottom right corners
     draw.ellipse((x - width, y - width, x + width, y + width), fill = fillColor, outline = outlineColor)
@@ -121,7 +123,7 @@ def siftCornerDetector(filename):
         for scale in range(scalesPerOctave + 3):
             print("Computing octave %d scale %d" % (octave, scale))
             zoomedImage = sc.ndimage.zoom(image, np.power(0.5, octave))
-            gaussianImage = sc.ndimage.filters.gaussian_filter(zoomedImage, sigma * np.power(k, scale), order = 2)
+            gaussianImage = sc.ndimage.filters.gaussian_filter(zoomedImage, sigma * np.power(k, scale), order = 0)
             sc.misc.imsave(mkPath(filename, "-1-sift-scale-%d-%d" % (octave, scale)), gaussianImage)
             if scale > 0:
                 diffGaussian = gaussianImage - gaussianImages[-1]
