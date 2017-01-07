@@ -3,7 +3,6 @@ import scipy.io
 import scipy.misc
 import scipy.ndimage
 import numpy as np
-# import numpy.linalg
 import PIL as pil
 import os.path
 import Image, ImageDraw
@@ -17,7 +16,7 @@ k = np.power(2, 1.0 / scalesPerOctave)
 # How to draw the circle based on the sigma?
 
 def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = (0, 255, 0), width = 2):
-#     # Top left and bottom right corners
+    # Top left and bottom right corners
     draw.ellipse((x - width, y - width, x + width, y + width), fill = fillColor, outline = outlineColor)
 
 def drawFeatures(filename, features):
@@ -111,7 +110,46 @@ def findFeatures2(allDiffImages):
                         features.append((y, x, octave, scale))
     return features
 
-def siftCornerDetector(filename):
+def dxy(images, x, y, s):
+    d1 = (images[s][y+1, x+1] - images[s][y+1,x-1]) / 2
+    d2 = (images[s][y-1, x+1] - images[s][y-1,x-1]) / 2
+    return (d1 - d2) / 2
+
+# Fast way to compute hessian
+# http://stackoverflow.com/questions/31206443/numpy-second-derivative-of-a-ndimensional-array
+# In our case, result is:
+# | ss | sy | sx |
+# | ys | yy | yx |
+# | xs | xy | xx |
+def hessian(x):
+    """
+    Calculate the hessian matrix with finite differences
+    Parameters:
+       - x : ndarray
+    Returns:
+       an array of shape (x.dim, x.ndim) + x.shape
+       where the array[i, j, ...] corresponds to the second derivative x_ij
+    """
+    x_grad = np.gradient(x)
+    hessian = np.empty((x.ndim, x.ndim) + x.shape, dtype=x.dtype)
+    for k, grad_k in enumerate(x_grad):
+        # iterate over dimensions
+        # apply gradient again to every component of the first derivative.
+        tmp_grad = np.gradient(grad_k)
+        for l, grad_kl in enumerate(tmp_grad):
+            hessian[k, l, :, :] = grad_kl
+    return hessian
+
+def filterFeatures(allDiffImages, features):
+    return features
+    # for (y, x, octave, scale):
+    #     print
+    #     Hx = np.array([
+    #             mkDxx()
+    #         ])
+
+
+def findDiffImages(filename):
     image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
 
     # This could be optimized, a lot of repetitive work here
@@ -132,11 +170,27 @@ def siftCornerDetector(filename):
             gaussianImages.append(gaussianImage)
         allImages.append(gaussianImages)
         allDiffImages.append(diffImages)
+    return allDiffImages
+
+def siftCornerDetector(filename):
+    allDiffImages = findDiffImages(filename)
+
+    flattenedDiffs = []
+    for s in range(scalesPerOctave+2):
+        flattenedDiffs.append(allDiffImages[0][s])
+    flattenedDiffs = np.array(flattenedDiffs)
 
     t1 = time.time()
     features = findFeatures2(allDiffImages)
     t2 = time.time()
     print("Found %d features" % len(features))
+    print("Finished finding features in %f" % (t2 - t1))
+
+    print("Filtering features...")
+    t1 = time.time()
+    features2 = filterFeatures(allDiffImages, features)
+    t2 = time.time()
+    print("Filtered to %d features" % len(features2))
     print("Finished finding features in %f" % (t2 - t1))
 
     drawFeatures(filename, features)
