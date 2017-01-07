@@ -9,10 +9,25 @@ import os.path
 import Image, ImageDraw
 import time
 
-octaves = 2 # Should be 4 in final
+octaves = 4 # Should be 4 in final
 scalesPerOctave = 3
 sigma = 1.6
-k = 1.41
+k = np.power(2, 1.0 / scalesPerOctave)
+
+def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = (0, 255, 0), width = 2):
+#     # Top left and bottom right corners
+    draw.ellipse((x - width, y - width, x + width, y + width), fill = fillColor, outline = outlineColor)
+
+def drawFeatures(filename, features):
+    im = Image.open(filename)
+    draw = ImageDraw.Draw(im)
+    for (y, x, octave, scale) in features:
+        realX = x * np.power(2, octave)
+        realY = y * np.power(2, octave)
+        # ...
+        radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
+        drawSmallCircle(draw, realX, realY, width = radius)
+    im.save(mkPath(filename, "-with-features"), "JPEG")
 
 def mkPath(filename, suffix):
     basePath, extPath = os.path.splitext(filename)
@@ -97,6 +112,7 @@ def findFeatures2(allDiffImages):
 def siftCornerDetector(filename):
     image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
 
+    # This could be optimized, a lot of repetitive work here
     allImages = []
     allDiffImages = []
     for octave in range(octaves):
@@ -121,15 +137,17 @@ def siftCornerDetector(filename):
     print("Found %d features" % len(features))
     print("Finished finding features in %f" % (t2 - t1))
 
+    drawFeatures(filename, features)
+
 
 def run():
     filenames = [
             "data/Notre Dame/1_o.jpg",
-            # "data/Notre Dame/2_o.jpg",
-            # "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
-            # "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
-            # "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
-            # "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
+            "data/Notre Dame/2_o.jpg",
+            "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
+            "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
+            "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
+            "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
         ]
 
     for filename in filenames:
