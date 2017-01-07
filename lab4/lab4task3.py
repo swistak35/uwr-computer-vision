@@ -14,8 +14,10 @@ scalesPerOctave = 3
 sigma = 1.6
 k = np.power(2, 1.0 / scalesPerOctave)
 THRESHOLD = 0.03 * 255.0 # In paper they say: 0.03 is nice threshold, assuming values are from 0.0 to 1.0. Our format is up to 255.0?
+EDGE_RATIO = 10.0
 
 # How to draw the circle based on the sigma?
+# TODO: Draw the filtered features
 
 def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = (0, 255, 0), width = 2):
     # Top left and bottom right corners
@@ -164,14 +166,31 @@ def filterFeatures(allDiffImages, features):
                 ])
             hvec = -invHessian.dot(dDX)
             extremaValue = flattenedDiffs[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(tmph).dot(hvec)
-            print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (flattenedDiffs[s][y,x], extremaValue, extremaValue - flattenedDiffs[s][y,x]))
+            # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (flattenedDiffs[s][y,x], extremaValue, extremaValue - flattenedDiffs[s][y,x]))
             filteredFeatures.append(f + (flattenedDiffs[s][y,x], extremaValue))
         else:
             filteredFeatures.append(f + (allDiffImages[octave][s][y, x], allDiffImages[octave][s][y,x]))
     filteredFeatures = np.array(filteredFeatures)
     featuresAboveThreshold = filteredFeatures[np.abs(filteredFeatures[:,5] > THRESHOLD)]
 
-    return np.array(featuresAboveThreshold)
+    print("Threshold filtered to %d" % len(featuresAboveThreshold))
+
+    hessian2x2 = []
+    for img in flattenedDiffs:
+        hessian2x2.append(hessian(img))
+    moreFiltered = []
+    for f in featuresAboveThreshold:
+        (y, x, octave, s, v, ev) = f
+        if octave == 0:
+            hs = hessian2x2[int(s)][:,:,y,x] # How int rounds? Potential fuckup?
+            r = np.power(np.trace(hs), 2) / np.linalg.det(hs)
+            edge_ratio_coefficient = np.power(EDGE_RATIO + 1, 2) / EDGE_RATIO
+            if r < edge_ratio_coefficient:
+                moreFiltered.append(f)
+        else:
+            moreFiltered.append(f)
+
+    return np.array(moreFiltered)
 
 
 def findDiffImages(filename):
