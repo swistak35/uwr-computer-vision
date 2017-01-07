@@ -23,7 +23,7 @@ def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = (0, 255, 0), wi
     # Top left and bottom right corners
     draw.ellipse((x - width, y - width, x + width, y + width), fill = fillColor, outline = outlineColor)
 
-def drawFeatures(filename, features):
+def drawFeatures(filename, features, edgesRemoved):
     im = Image.open(filename)
     draw = ImageDraw.Draw(im)
     for (y, x, octave, scale, v, ev) in features:
@@ -32,6 +32,12 @@ def drawFeatures(filename, features):
         # ...
         radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
         drawSmallCircle(draw, realX, realY, width = radius)
+    for (y, x, octave, scale, v, ev) in edgesRemoved:
+        realX = x * np.power(2, octave)
+        realY = y * np.power(2, octave)
+        # ...
+        radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
+        drawSmallCircle(draw, realX, realY, width = radius, outlineColor = (255, 0, 0))
     im.save(mkPath(filename, "-with-features"), "JPEG")
 
 def mkPath(filename, suffix):
@@ -179,18 +185,21 @@ def filterFeatures(allDiffImages, features):
     for img in flattenedDiffs:
         hessian2x2.append(hessian(img))
     moreFiltered = []
+    edgesRemoved = []
     for f in featuresAboveThreshold:
         (y, x, octave, s, v, ev) = f
         if octave == 0:
-            hs = hessian2x2[int(s)][:,:,y,x] # How int rounds? Potential fuckup?
+            hs = hessian2x2[int(s)][:,:,int(y),int(x)] # How int rounds? Potential fuckup?
             r = np.power(np.trace(hs), 2) / np.linalg.det(hs)
             edge_ratio_coefficient = np.power(EDGE_RATIO + 1, 2) / EDGE_RATIO
             if r < edge_ratio_coefficient:
                 moreFiltered.append(f)
+            else:
+                edgesRemoved.append(f)
         else:
             moreFiltered.append(f)
 
-    return np.array(moreFiltered)
+    return (np.array(moreFiltered), np.array(edgesRemoved))
 
 
 def findDiffImages(filename):
@@ -232,13 +241,13 @@ def siftCornerDetector(filename):
 
     print("Filtering features...")
     t1 = time.time()
-    features2 = filterFeatures(allDiffImages, features)
+    (features2, edgesRemoved) = filterFeatures(allDiffImages, features)
     t2 = time.time()
     print("Filtered to %d features" % len(features2))
+    print("Edges removed: %d" % len(edgesRemoved))
     print("Finished finding features in %f" % (t2 - t1))
 
-    drawFeatures(filename, features2)
-
+    drawFeatures(filename, features2, edgesRemoved)
 
 def run():
     filenames = [
