@@ -132,72 +132,6 @@ def mkCurrentWindow(currentImage, y, x):
             currentImage[y+1, x+1],
         ])
 
-def siftCornerDetector(filename):
-    image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
-
-    # sigma = 1.6
-    # k = 1.41
-    # for i in range(10):
-    #     print("Computing gaussian %d" % i)
-    #     imageGaussian = sc.ndimage.filters.gaussian_filter(image, sigma*np.power(k, i), order = 2)
-    #     sc.misc.imsave(mkPath(filename, "-1-sift-scale-%d" % i), imageGaussian)
-    # for i in range(4):
-    #     print("Computing zoom %d" % i)
-    #     zoomed = sc.ndimage.zoom(image, np.power(0.5, i))
-    #     sc.misc.imsave(mkPath(filename, "-1-zoom-%d" % i), zoomed)
-
-    octaves = 2 # Should be 4 in final
-    scalesPerOctave = 3
-    sigma = 1.6
-    k = 1.41
-    allImages = []
-    allDiffImages = []
-    for octave in range(octaves):
-        gaussianImages = []
-        diffImages = []
-        for scale in range(scalesPerOctave + 3):
-            print("Computing octave %d scale %d" % (octave, scale))
-            zoomedImage = sc.ndimage.zoom(image, np.power(0.5, octave))
-            gaussianImage = sc.ndimage.filters.gaussian_filter(zoomedImage, sigma * np.power(k, scale), order = 2)
-            sc.misc.imsave(mkPath(filename, "-1-sift-scale-%d-%d" % (octave, scale)), gaussianImage)
-            if scale > 0:
-                diffGaussian = gaussianImage - gaussianImages[-1]
-                sc.misc.imsave(mkPath(filename, "-2-sift-diff-%d-%d" % (octave, scale)), diffGaussian)
-                diffImages.append(diffGaussian)
-            gaussianImages.append(gaussianImage)
-        allImages.append(gaussianImages)
-        allDiffImages.append(diffImages)
-
-    previousfeatures = 0
-    features = []
-    for octave in range(octaves):
-        for scale in range(1, scalesPerOctave + 1):
-            print("Searching octave %d scale %d" % (octave, scale))
-            belowImage = allDiffImages[octave][scale - 1]
-            currentImage = allDiffImages[octave][scale]
-            aboveImage = allDiffImages[octave][scale + 1]
-            t1 = time.time()
-            for y in range(1, currentImage.shape[0] - 2):
-                for x in range(1, currentImage.shape[1] - 2):
-                    belowWindow = belowImage[y-1:y+2,x-1:x+2]
-                    assert(belowWindow.shape == (3,3))
-                    aboveWindow = aboveImage[y-1:y+2,x-1:x+2]
-                    assert(aboveWindow.shape == (3,3))
-                    currentWindow = mkCurrentWindow(currentImage, y, x)
-                    if np.all(belowWindow > currentImage[y,x]) and np.all(aboveWindow > currentImage[y,x]) and np.all(currentWindow > currentImage[y,x]):
-                        features.append((y, x, octave, scale))
-                    # if np.all(belowWindow < currentImage[y,x]) and np.all(aboveWindow < currentImage[y,x]) and np.all(currentWindow < currentImage[y,x]):
-                        # features.append((y, x, octave, scale))
-            t2 = time.time()
-            print("Finished in %f" % (t2 - t1))
-            print("Found %d new features" % (len(features) - previousfeatures))
-            previousfeatures = len(features)
-    print("Found %d features" % len(features))
-
-
-
-
-
 def run():
     filenames = [
             "data/Notre Dame/1_o.jpg",
@@ -209,7 +143,6 @@ def run():
         ]
     for filename in filenames:
         print("=== File: %s" % filename)
-        # harrisCornerDetector(filename)
-        siftCornerDetector(filename)
+        harrisCornerDetector(filename)
 
 run()
