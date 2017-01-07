@@ -3,6 +3,7 @@ import scipy.io
 import scipy.misc
 import scipy.ndimage
 import numpy as np
+import numpy.linalg
 import PIL as pil
 import os.path
 import Image, ImageDraw
@@ -12,6 +13,7 @@ octaves = 4 # Should be 4 in final
 scalesPerOctave = 3
 sigma = 1.6
 k = np.power(2, 1.0 / scalesPerOctave)
+THRESHOLD = 0.03 * 255.0 # In paper they say: 0.03 is nice threshold, assuming values are from 0.0 to 1.0. Our format is up to 255.0?
 
 # How to draw the circle based on the sigma?
 
@@ -22,7 +24,7 @@ def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = (0, 255, 0), wi
 def drawFeatures(filename, features):
     im = Image.open(filename)
     draw = ImageDraw.Draw(im)
-    for (y, x, octave, scale) in features:
+    for (y, x, octave, scale, v, ev) in features:
         realX = x * np.power(2, octave)
         realY = y * np.power(2, octave)
         # ...
@@ -141,12 +143,35 @@ def hessian(x):
     return hessian
 
 def filterFeatures(allDiffImages, features):
-    return features
-    # for (y, x, octave, scale):
-    #     print
-    #     Hx = np.array([
-    #             mkDxx()
-    #         ])
+    filteredFeatures = []
+    flattenedDiffs = np.array(allDiffImages[0])
+    fullHessian = hessian(flattenedDiffs)
+    for f in features:
+        (y, x, octave, s) = f
+        if octave == 0:
+            tmph = fullHessian[:, :, s, y, x]
+            realHessian = np.array([
+                    [ tmph[2, 2], tmph[2, 1], tmph[2, 0] ],
+                    [ tmph[1, 2], tmph[1, 1], tmph[1, 0] ],
+                    [ tmph[0, 2], tmph[0, 1], tmph[0, 0] ],
+                ])
+            invHessian = np.linalg.inv(tmph)
+            xvec = np.array([ x, y, s ])
+            dDX = np.array([
+                    (flattenedDiffs[s+1][y, x] - flattenedDiffs[s-1][y, x]) / 2,
+                    (flattenedDiffs[s][y+1, x] - flattenedDiffs[s][y-1, x]) / 2,
+                    (flattenedDiffs[s][y, x+1] - flattenedDiffs[s][y, x-1]) / 2,
+                ])
+            hvec = -invHessian.dot(dDX)
+            extremaValue = flattenedDiffs[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(tmph).dot(hvec)
+            print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (flattenedDiffs[s][y,x], extremaValue, extremaValue - flattenedDiffs[s][y,x]))
+            filteredFeatures.append(f + (flattenedDiffs[s][y,x], extremaValue))
+        else:
+            filteredFeatures.append(f + (allDiffImages[octave][s][y, x], allDiffImages[octave][s][y,x]))
+    filteredFeatures = np.array(filteredFeatures)
+    featuresAboveThreshold = filteredFeatures[np.abs(filteredFeatures[:,5] > THRESHOLD)]
+
+    return np.array(featuresAboveThreshold)
 
 
 def findDiffImages(filename):
@@ -193,17 +218,17 @@ def siftCornerDetector(filename):
     print("Filtered to %d features" % len(features2))
     print("Finished finding features in %f" % (t2 - t1))
 
-    drawFeatures(filename, features)
+    drawFeatures(filename, features2)
 
 
 def run():
     filenames = [
             "data/Notre Dame/1_o.jpg",
-            "data/Notre Dame/2_o.jpg",
-            "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
-            "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
-            "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
-            "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
+            # "data/Notre Dame/2_o.jpg",
+            # "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
+            # "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
+            # "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
+            # "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
         ]
 
     for filename in filenames:
