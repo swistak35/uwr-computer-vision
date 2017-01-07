@@ -31,6 +31,62 @@ def mkCurrentWindow(currentImage, y, x):
         ])
 
 def findFeatures1(allDiffImages):
+    previousFeatures = 0
+    features = []
+    for octave in range(octaves):
+        for scale in range(1, scalesPerOctave + 1):
+            print("Searching octave %d scale %d" % (octave, scale))
+            t1 = time.time()
+            belowImage = allDiffImages[octave][scale - 1]
+            currentImage = allDiffImages[octave][scale]
+            aboveImage = allDiffImages[octave][scale + 1]
+            for y in range(1, currentImage.shape[0] - 2):
+                for x in range(1, currentImage.shape[1] - 2):
+                    belowWindow = belowImage[y-1:y+2,x-1:x+2]
+                    assert(belowWindow.shape == (3,3))
+                    aboveWindow = aboveImage[y-1:y+2,x-1:x+2]
+                    assert(aboveWindow.shape == (3,3))
+                    currentWindow = mkCurrentWindow(currentImage, y, x)
+                    if np.all(belowWindow > currentImage[y,x]) and np.all(aboveWindow > currentImage[y,x]) and np.all(currentWindow > currentImage[y,x]):
+                        features.append((y, x, octave, scale))
+                    if np.all(belowWindow < currentImage[y,x]) and np.all(aboveWindow < currentImage[y,x]) and np.all(currentWindow < currentImage[y,x]):
+                        features.append((y, x, octave, scale))
+            t2 = time.time()
+            print("Finished in %f" % (t2 - t1))
+            print("Found %d new features" % (len(features) - previousFeatures))
+            previousFeatures = len(features)
+    print("Found %d features" % len(features))
+    return features
+
+def findFeatures2(allDiffImages):
+    minImages = []
+    maxImages = []
+    for octave in range(octaves):
+        minImagesInOctave = []
+        maxImagesInOctave = []
+        for scale in range(scalesPerOctave + 2):
+            img = allDiffImages[octave][scale]
+            (height, width) = img.shape
+            arrayCollection = np.array([
+                    img[1:(height - 1),1:(width - 1)],
+
+                    img[0:(height - 2),1:(width - 1)],
+                    img[2:(height),1:(width - 1)],
+                    img[1:(height - 1),0:(width - 2)],
+                    img[1:(height - 1),2:(width)],
+
+                    img[0:(height - 2),0:(width - 2)],
+                    img[0:(height - 2),2:(width)],
+                    img[2:(height),0:(width - 2)],
+                    img[2:(height),2:(width)],
+                ])
+            mins = np.amin(arrayCollection, axis = 0)
+            maxs = np.amax(arrayCollection, axis = 0)
+            minImagesInOctave.append(mins)
+            maxImagesInOctave.append(maxs)
+        minImages.append(minImagesInOctave)
+        maxImages.append(maxImagesInOctave)
+
     previousfeatures = 0
     features = []
     for octave in range(octaves):
@@ -40,38 +96,19 @@ def findFeatures1(allDiffImages):
             belowImage = allDiffImages[octave][scale - 1]
             currentImage = allDiffImages[octave][scale]
             aboveImage = allDiffImages[octave][scale + 1]
-            (height, width) = belowImage.shape
-            belowMins = np.amin(np.array([
-                belowImage[1:(height - 1),1:(width - 1)],
-
-                belowImage[0:(height - 2),1:(width - 1)],
-                belowImage[2:(height),1:(width - 1)],
-                belowImage[1:(height - 1),0:(width - 2)],
-                belowImage[1:(height - 1),2:(width)],
-
-                belowImage[0:(height - 2),0:(width - 2)],
-                belowImage[0:(height - 2),2:(width)],
-                belowImage[2:(height),0:(width - 2)],
-                belowImage[2:(height),2:(width)],
-                ]), axis = 0)
             for y in range(1, currentImage.shape[0] - 2):
                 for x in range(1, currentImage.shape[1] - 2):
-                    # belowWindow = belowImage[y-1:y+2,x-1:x+2]
-                    # assert(belowWindow.shape == (3,3))
-                    aboveWindow = aboveImage[y-1:y+2,x-1:x+2]
-                    assert(aboveWindow.shape == (3,3))
                     currentWindow = mkCurrentWindow(currentImage, y, x)
-                    if belowMins[y-1,x-1] > currentImage[y,x] and np.all(aboveWindow > currentImage[y,x]) and np.all(currentWindow > currentImage[y,x]):
+                    if minImages[octave][scale - 1][y-1,x-1] > currentImage[y,x] and minImages[octave][scale + 1][y-1,x-1] > currentImage[y,x] and np.all(currentWindow > currentImage[y,x]):
                         features.append((y, x, octave, scale))
-                    # if np.all(belowWindow > currentImage[y,x]) and np.all(aboveWindow > currentImage[y,x]) and np.all(currentWindow > currentImage[y,x]):
-                        # features.append((y, x, octave, scale))
-                    # if np.all(belowWindow < currentImage[y,x]) and np.all(aboveWindow < currentImage[y,x]) and np.all(currentWindow < currentImage[y,x]):
-                        # features.append((y, x, octave, scale))
+                    if maxImages[octave][scale - 1][y-1,x-1] < currentImage[y,x] and maxImages[octave][scale + 1][y-1,x-1] < currentImage[y,x] and np.all(currentWindow < currentImage[y,x]):
+                        features.append((y, x, octave, scale))
             t2 = time.time()
             print("Finished in %f" % (t2 - t1))
             print("Found %d new features" % (len(features) - previousfeatures))
             previousfeatures = len(features)
     print("Found %d features" % len(features))
+    return features
 
 def siftCornerDetector(filename):
     image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
@@ -94,7 +131,10 @@ def siftCornerDetector(filename):
         allImages.append(gaussianImages)
         allDiffImages.append(diffImages)
 
-    findFeatures1(allDiffImages)
+    t1 = time.time()
+    findFeatures2(allDiffImages)
+    t2 = time.time()
+    print("Finished finding features in %f" % (t2 - t1))
 
 
 def run():

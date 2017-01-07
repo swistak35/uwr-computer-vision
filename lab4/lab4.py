@@ -120,18 +120,6 @@ def harrisCornerDetector(filename, gaussianDerivativeSigma = 3.0, gaussianFilter
     drawCorners(filename, maximaCorners, "-5-with-corners")
     drawCornersWithRadius(filename, maximaCornersAnms, "-5-with-corners-anms")
 
-def mkCurrentWindow(currentImage, y, x):
-    return np.array([
-            currentImage[y-1, x],
-            currentImage[y+1, x],
-            currentImage[y, x+1],
-            currentImage[y, x-1],
-            currentImage[y-1, x-1],
-            currentImage[y+1, x-1],
-            currentImage[y-1, x+1],
-            currentImage[y+1, x+1],
-        ])
-
 def run():
     filenames = [
             "data/Notre Dame/1_o.jpg",
