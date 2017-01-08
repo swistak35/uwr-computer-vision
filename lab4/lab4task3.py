@@ -188,14 +188,7 @@ def filterFeaturesAboveThreshold(features):
         featuresBelowThreshold.append(featuresInOctave[np.abs(featuresInOctave[:,5] <= THRESHOLD)])
     return (featuresAboveThreshold, featuresBelowThreshold)
 
-def filterFeatures(allDiffImages, features):
-    print("== Filtering features...")
-
-    featuresWithExtremas = computeExtremaValues(allDiffImages, features)
-
-    (featuresAboveThreshold, featuresBelowThreshold) = filterFeaturesAboveThreshold(featuresWithExtremas)
-
-    print("Filtering edges")
+def filterEdgeFeatures(featuresAboveThreshold, allDiffImages):
     flattenedDiffs = np.array(allDiffImages[0])
     hessian2x2 = []
     for img in flattenedDiffs:
@@ -219,6 +212,17 @@ def filterFeatures(allDiffImages, features):
                 notEdgesInOctave.append(f)
         notEdges.append(notEdgesInOctave)
         edgesRemoved.append(edgesRemovedInOctave)
+    return (notEdges, edgesRemoved)
+
+def filterFeatures(allDiffImages, features):
+    print("== Filtering features...")
+
+    featuresWithExtremas = computeExtremaValues(allDiffImages, features)
+
+    (featuresAboveThreshold, featuresBelowThreshold) = filterFeaturesAboveThreshold(featuresWithExtremas)
+
+    print("Filtering edges")
+    (notEdges, edgesRemoved) = filterEdgeFeatures(featuresAboveThreshold, allDiffImages)
 
     return (notEdges, featuresBelowThreshold, edgesRemoved)
 
