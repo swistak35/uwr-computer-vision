@@ -32,18 +32,20 @@ def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = COLORS['GREEN']
 def drawFeatures(filename, features, edgesRemoved):
     im = Image.open(filename)
     draw = ImageDraw.Draw(im)
-    for (y, x, octave, scale, v, ev) in features:
-        realX = x * np.power(2, octave)
-        realY = y * np.power(2, octave)
-        # ...
-        radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
-        drawSmallCircle(draw, realX, realY, width = radius)
-    for (y, x, octave, scale, v, ev) in edgesRemoved:
-        realX = x * np.power(2, octave)
-        realY = y * np.power(2, octave)
-        # ...
-        radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
-        drawSmallCircle(draw, realX, realY, width = radius, outlineColor = (255, 0, 0))
+    for featuresInOctave in features:
+        for (y, x, octave, scale, v, ev) in featuresInOctave:
+            realX = x * np.power(2, octave)
+            realY = y * np.power(2, octave)
+            # ...
+            radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
+            drawSmallCircle(draw, realX, realY, width = radius)
+    for edgesRemovedInOctave in edgesRemoved:
+        for (y, x, octave, scale, v, ev) in edgesRemovedInOctave:
+            realX = x * np.power(2, octave)
+            realY = y * np.power(2, octave)
+            # ...
+            radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
+            drawSmallCircle(draw, realX, realY, width = radius, outlineColor = (255, 0, 0))
     im.save(mkPath(filename, "-with-features"), "JPEG")
 
 def mkPath(filename, suffix):
@@ -112,12 +114,16 @@ def buildMinMaxImages(allDiffImages):
         maxImages.append(maxImagesInOctave)
     return (minImages, maxImages)
 
+def featuresAmount(features):
+    return np.sum([ len(features[o]) for o in range(octaves) ])
+
 def findFeatures2(allDiffImages):
     print("== Searching for keypoints...")
     (minImages, maxImages) = buildMinMaxImages(allDiffImages)
 
     features = []
     for octave in range(octaves):
+        featuresInOctave = []
         (height, width) = allDiffImages[octave][0].shape
         for scale in range(1, scalesPerOctave + 1):
             print("Searching octave %d scale %d" % (octave, scale))
@@ -128,9 +134,10 @@ def findFeatures2(allDiffImages):
                     aboveImageV = allDiffImages[octave][scale + 1][y,x]
                     if minImages[octave][scale - 1][y-1,x-1] > currentImageV and minImages[octave][scale + 1][y-1,x-1] > currentImageV and minImages[octave][scale][y-1,x-1] > currentImageV and belowImageV > currentImageV and aboveImageV > currentImageV:
                         # TODO: Maybe we could here already add a value?
-                        features.append((y, x, octave, scale))
+                        featuresInOctave.append((y, x, octave, scale))
                     if maxImages[octave][scale - 1][y-1,x-1] < currentImageV and maxImages[octave][scale + 1][y-1,x-1] < currentImageV and maxImages[octave][scale][y-1,x-1] < currentImageV and belowImageV < currentImageV and aboveImageV < currentImageV:
-                        features.append((y, x, octave, scale))
+                        featuresInOctave.append((y, x, octave, scale))
+        features.append(featuresInOctave)
     return features
 
 # Not used in the end, only used as helper in debugging
@@ -169,32 +176,38 @@ def computeExtremaValues(allDiffImages, features):
     featuresWithExtremas = []
     flattenedDiffs = np.array(allDiffImages[0])
     fullHessian = hessian(flattenedDiffs)
-    for f in features:
-        (y, x, octave, s) = f
-        if octave == 0:
-            tmph = fullHessian[:, :, s, y, x]
-            realHessian = np.array([
-                    [ tmph[2, 2], tmph[2, 1], tmph[2, 0] ],
-                    [ tmph[1, 2], tmph[1, 1], tmph[1, 0] ],
-                    [ tmph[0, 2], tmph[0, 1], tmph[0, 0] ],
-                ])
-            invHessian = np.linalg.inv(tmph)
-            xvec = np.array([ x, y, s ])
-            dDX = np.array([
-                    (flattenedDiffs[s+1][y, x] - flattenedDiffs[s-1][y, x]) / 2,
-                    (flattenedDiffs[s][y+1, x] - flattenedDiffs[s][y-1, x]) / 2,
-                    (flattenedDiffs[s][y, x+1] - flattenedDiffs[s][y, x-1]) / 2,
-                ])
-            hvec = -invHessian.dot(dDX)
-            extremaValue = flattenedDiffs[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(tmph).dot(hvec)
-            # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (flattenedDiffs[s][y,x], extremaValue, extremaValue - flattenedDiffs[s][y,x]))
-            featuresWithExtremas.append(f + (flattenedDiffs[s][y,x], extremaValue))
-        else:
-            featuresWithExtremas.append(f + (allDiffImages[octave][s][y, x], allDiffImages[octave][s][y,x]))
-    return np.array(featuresWithExtremas)
+    for featuresInOctave in features:
+        featuresInOctaveWithExtremas = []
+        for f in featuresInOctave:
+            (y, x, octave, s) = f
+            if octave == 0:
+                tmph = fullHessian[:, :, s, y, x]
+                realHessian = np.array([
+                        [ tmph[2, 2], tmph[2, 1], tmph[2, 0] ],
+                        [ tmph[1, 2], tmph[1, 1], tmph[1, 0] ],
+                        [ tmph[0, 2], tmph[0, 1], tmph[0, 0] ],
+                    ])
+                invHessian = np.linalg.inv(tmph)
+                xvec = np.array([ x, y, s ])
+                dDX = np.array([
+                        (flattenedDiffs[s+1][y, x] - flattenedDiffs[s-1][y, x]) / 2,
+                        (flattenedDiffs[s][y+1, x] - flattenedDiffs[s][y-1, x]) / 2,
+                        (flattenedDiffs[s][y, x+1] - flattenedDiffs[s][y, x-1]) / 2,
+                    ])
+                hvec = -invHessian.dot(dDX)
+                extremaValue = flattenedDiffs[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(tmph).dot(hvec)
+                # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (flattenedDiffs[s][y,x], extremaValue, extremaValue - flattenedDiffs[s][y,x]))
+                featuresInOctaveWithExtremas.append(f + (flattenedDiffs[s][y,x], extremaValue))
+            else:
+                featuresInOctaveWithExtremas.append(f + (allDiffImages[octave][s][y, x], allDiffImages[octave][s][y,x]))
+        featuresWithExtremas.append(np.array(featuresInOctaveWithExtremas))
+    return featuresWithExtremas
 
 def filterFeaturesAboveThreshold(features):
-    return features[np.abs(features[:,5] > THRESHOLD)]
+    featuresAboveThreshold = []
+    for featuresInOctave in features:
+        featuresAboveThreshold.append(featuresInOctave[np.abs(featuresInOctave[:,5] > THRESHOLD)])
+    return featuresAboveThreshold
 
 def filterFeatures(allDiffImages, features):
     print("== Filtering features...")
@@ -208,22 +221,27 @@ def filterFeatures(allDiffImages, features):
     hessian2x2 = []
     for img in flattenedDiffs:
         hessian2x2.append(hessian(img))
-    moreFiltered = []
+    notEdges = []
     edgesRemoved = []
-    for f in featuresAboveThreshold:
-        (y, x, octave, s, v, ev) = f
-        if octave == 0:
-            hs = hessian2x2[int(s)][:,:,int(y),int(x)] # How int rounds? Potential fuckup?
-            r = np.power(np.trace(hs), 2) / np.linalg.det(hs)
-            edge_ratio_coefficient = np.power(EDGE_RATIO + 1, 2) / EDGE_RATIO
-            if r < edge_ratio_coefficient:
-                moreFiltered.append(f)
+    for featuresInOctave in featuresAboveThreshold:
+        notEdgesInOctave = []
+        edgesRemovedInOctave = []
+        for f in featuresInOctave:
+            (y, x, octave, s, v, ev) = f
+            if octave == 0:
+                hs = hessian2x2[int(s)][:,:,int(y),int(x)] # How int rounds? Potential fuckup?
+                r = np.power(np.trace(hs), 2) / np.linalg.det(hs)
+                edge_ratio_coefficient = np.power(EDGE_RATIO + 1, 2) / EDGE_RATIO
+                if r < edge_ratio_coefficient:
+                    notEdgesInOctave.append(f)
+                else:
+                    edgesRemovedInOctave.append(f)
             else:
-                edgesRemoved.append(f)
-        else:
-            moreFiltered.append(f)
+                notEdgesInOctave.append(f)
+        notEdges.append(notEdgesInOctave)
+        edgesRemoved.append(edgesRemovedInOctave)
 
-    return (np.array(moreFiltered), np.array(edgesRemoved))
+    return (np.array(notEdges), np.array(edgesRemoved))
 
 def findDiffImages(filename):
     image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
@@ -255,12 +273,12 @@ def siftCornerDetector(filename):
     t1 = time.time()
     features = findFeatures2(allDiffImages)
     t2 = time.time()
-    print("Found %d features in %f" % (len(features), t2 - t1))
+    print("Found %d features in %f" % (featuresAmount(features), t2 - t1))
 
     t1 = time.time()
     (features2, edgesRemoved) = filterFeatures(allDiffImages, features)
     t2 = time.time()
-    print("Filtered to %d features in %f (%d low-contrast removed, %d edges removed)" % (len(features2), t2 - t1, len([]), len(edgesRemoved)))
+    print("Filtered to %d features in %f (%d low-contrast removed, %d edges removed)" % (featuresAmount(features2), t2 - t1, len([]), featuresAmount(edgesRemoved)))
 
     drawFeatures(filename, features2, edgesRemoved)
 
