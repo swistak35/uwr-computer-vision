@@ -189,27 +189,27 @@ def filterFeaturesAboveThreshold(features):
     return (featuresAboveThreshold, featuresBelowThreshold)
 
 def filterEdgeFeatures(featuresAboveThreshold, allDiffImages):
-    flattenedDiffs = np.array(allDiffImages[0])
-    hessian2x2 = []
-    for img in flattenedDiffs:
-        hessian2x2.append(hessian(img))
     notEdges = []
     edgesRemoved = []
-    for featuresInOctave in featuresAboveThreshold:
+    for octave in range(octaves):
+        featuresInOctave = featuresAboveThreshold[octave]
+        diffImages = allDiffImages[octave]
+
+        hessian2x2 = []
+        for img in diffImages:
+            hessian2x2.append(hessian(img))
+
         notEdgesInOctave = []
         edgesRemovedInOctave = []
         for f in featuresInOctave:
-            (y, x, octave, s, v, ev) = f
-            if octave == 0:
-                hs = hessian2x2[int(s)][:,:,int(y),int(x)] # How int rounds? Potential fuckup?
-                r = np.power(np.trace(hs), 2) / np.linalg.det(hs)
-                edge_ratio_coefficient = np.power(EDGE_RATIO + 1, 2) / EDGE_RATIO
-                if r < edge_ratio_coefficient:
-                    notEdgesInOctave.append(f)
-                else:
-                    edgesRemovedInOctave.append(f)
-            else:
+            (y, x, octave2, s, v, ev) = f
+            hs = hessian2x2[int(s)][:,:,int(y),int(x)] # How int rounds? Potential fuckup?
+            r = np.power(np.trace(hs), 2) / np.linalg.det(hs)
+            edge_ratio_coefficient = np.power(EDGE_RATIO + 1, 2) / EDGE_RATIO
+            if r < edge_ratio_coefficient:
                 notEdgesInOctave.append(f)
+            else:
+                edgesRemovedInOctave.append(f)
         notEdges.append(notEdgesInOctave)
         edgesRemoved.append(edgesRemovedInOctave)
     return (notEdges, edgesRemoved)
