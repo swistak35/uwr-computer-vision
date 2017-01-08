@@ -13,7 +13,7 @@ octaves = 4
 scalesPerOctave = 3
 sigma = 1.6
 k = np.power(2, 1.0 / scalesPerOctave)
-THRESHOLD = 0.03 * 255.0 # In paper they say: 0.03 is nice threshold, assuming values are from 0.0 to 1.0. Our format is up to 255.0?
+THRESHOLD = 0.03 * 255.0 # In paper they say: 0.03 is nice threshold, assuming values are from 0.0 to 1.0. Our format is -255.0, 255.0?
 EDGE_RATIO = 10.0
 SHOULD_DRAW_REMOVED_EDGES = True
 SHOULD_DRAW_REMOVED_LOWCONTRAST = False
@@ -35,7 +35,7 @@ def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = COLORS['GREEN']
 def drawFeature(draw, x, y, scale, octave, outlineColor = COLORS['GREEN']):
     realX = x * np.power(2, octave)
     realY = y * np.power(2, octave)
-    radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
+    radius = 3 + sigma * np.power(k, scale) * np.power(2, octave)
     drawSmallCircle(draw, realX, realY, width = radius, outlineColor = outlineColor)
 
 def drawFeatures(filename, features, featuresBelowThreshold, edgesRemoved):
@@ -155,7 +155,6 @@ def computeExtremaValues(allDiffImages, features):
     featuresWithExtremas = []
     for octave in range(octaves):
         featuresInOctave = features[octave]
-        # TODO: That could be done once, no need to make this array each time - or maybe it is even already done?
         diffsInOctave = allDiffImages[octave]
         fullHessian = hessian(diffsInOctave)
 
@@ -268,11 +267,11 @@ def siftCornerDetector(filename):
 def run():
     filenames = [
             "data/Notre Dame/1_o.jpg",
-            # "data/Notre Dame/2_o.jpg",
-            # "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
-            # "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
-            # "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
-            # "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
+            "data/Notre Dame/2_o.jpg",
+            "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
+            "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
+            "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
+            "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
         ]
 
     for filename in filenames:
