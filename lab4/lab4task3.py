@@ -25,8 +25,8 @@ COLORS = {
 }
 
 # How to draw the circle based on the sigma?
-# TODO: Draw the filtered features
 # TODO: Make constants capital letter
+# TODO: octave is not needed in the list of features
 
 def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = COLORS['GREEN'], width = 2):
     # Top left and bottom right corners
@@ -153,36 +153,38 @@ def hessian(x):
 def computeExtremaValues(allDiffImages, features):
     print("Computing extrema values")
     featuresWithExtremas = []
-    flattenedDiffs = np.array(allDiffImages[0])
-    fullHessian = hessian(flattenedDiffs)
-    for featuresInOctave in features:
+    for octave in range(octaves):
+        featuresInOctave = features[octave]
+        # TODO: That could be done once, no need to make this array each time - or maybe it is even already done?
+        diffsInOctave = allDiffImages[0]
+        fullHessian = hessian(diffsInOctave)
+
         featuresInOctaveWithExtremas = []
         for f in featuresInOctave:
             (y, x, octave, s) = f
-            if octave == 0:
-                tmph = fullHessian[:, :, s, y, x]
-                realHessian = np.array([
-                        [ tmph[2, 2], tmph[2, 1], tmph[2, 0] ],
-                        [ tmph[1, 2], tmph[1, 1], tmph[1, 0] ],
-                        [ tmph[0, 2], tmph[0, 1], tmph[0, 0] ],
-                    ])
-                invHessian = np.linalg.inv(tmph)
-                xvec = np.array([ x, y, s ])
+
+            localHessian = fullHessian[:, :, s, y, x]
+            try:
+                invHessian = np.linalg.inv(localHessian)
+                # TODO: This could be optimized using np.gradient
                 dDX = np.array([
-                        (flattenedDiffs[s+1][y, x] - flattenedDiffs[s-1][y, x]) / 2,
-                        (flattenedDiffs[s][y+1, x] - flattenedDiffs[s][y-1, x]) / 2,
-                        (flattenedDiffs[s][y, x+1] - flattenedDiffs[s][y, x-1]) / 2,
+                        (diffsInOctave[s+1][y, x] - diffsInOctave[s-1][y, x]) / 2,
+                        (diffsInOctave[s][y+1, x] - diffsInOctave[s][y-1, x]) / 2,
+                        (diffsInOctave[s][y, x+1] - diffsInOctave[s][y, x-1]) / 2,
                     ])
                 hvec = -invHessian.dot(dDX)
-                extremaValue = flattenedDiffs[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(tmph).dot(hvec)
-                featuresInOctaveWithExtremas.append(f + (flattenedDiffs[s][y,x], extremaValue))
-                # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (flattenedDiffs[s][y,x], extremaValue, extremaValue - flattenedDiffs[s][y,x]))
-            else:
-                featuresInOctaveWithExtremas.append(f + (allDiffImages[octave][s][y, x], allDiffImages[octave][s][y,x]))
+                # This could be done in pure numpy?
+                extremaValue = diffsInOctave[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(localHessian).dot(hvec)
+                featuresInOctaveWithExtremas.append(f + (diffsInOctave[s][y,x], extremaValue))
+                # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (diffsInOctave[s][y,x], extremaValue, extremaValue - diffsInOctave[s][y,x]))
+            except numpy.linalg.linalg.LinAlgError:
+                # print("Warning: Singular matrix")
+                featuresInOctaveWithExtremas.append(f + (diffsInOctave[s][y,x], diffsInOctave[s][y,x]))
         featuresWithExtremas.append(np.array(featuresInOctaveWithExtremas))
     return featuresWithExtremas
 
 def filterFeaturesAboveThreshold(features):
+    print("Filtering features above threshold")
     featuresAboveThreshold = []
     featuresBelowThreshold = []
     for featuresInOctave in features:
@@ -197,6 +199,7 @@ def filterFeatures(allDiffImages, features):
 
     (featuresAboveThreshold, featuresBelowThreshold) = filterFeaturesAboveThreshold(featuresWithExtremas)
 
+    print("Filtering edges")
     flattenedDiffs = np.array(allDiffImages[0])
     hessian2x2 = []
     for img in flattenedDiffs:
