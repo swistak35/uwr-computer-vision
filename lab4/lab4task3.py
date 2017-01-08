@@ -9,12 +9,14 @@ import os.path
 import Image, ImageDraw
 import time
 
-octaves = 4 # Should be 4 in final
+octaves = 4
 scalesPerOctave = 3
 sigma = 1.6
 k = np.power(2, 1.0 / scalesPerOctave)
 THRESHOLD = 0.03 * 255.0 # In paper they say: 0.03 is nice threshold, assuming values are from 0.0 to 1.0. Our format is up to 255.0?
 EDGE_RATIO = 10.0
+SHOULD_DRAW_REMOVED_EDGES = True
+SHOULD_DRAW_REMOVED_LOWCONTRAST = False
 
 COLORS = {
     'RED': (255, 0, 0),
@@ -24,28 +26,32 @@ COLORS = {
 
 # How to draw the circle based on the sigma?
 # TODO: Draw the filtered features
+# TODO: Make constants capital letter
 
 def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = COLORS['GREEN'], width = 2):
     # Top left and bottom right corners
     draw.ellipse((x - width, y - width, x + width, y + width), fill = fillColor, outline = outlineColor)
 
-def drawFeatures(filename, features, edgesRemoved):
+def drawFeature(draw, x, y, scale, octave, outlineColor = COLORS['GREEN']):
+    realX = x * np.power(2, octave)
+    realY = y * np.power(2, octave)
+    radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
+    drawSmallCircle(draw, realX, realY, width = radius, outlineColor = outlineColor)
+
+def drawFeatures(filename, features, featuresBelowThreshold, edgesRemoved):
     im = Image.open(filename)
     draw = ImageDraw.Draw(im)
     for featuresInOctave in features:
         for (y, x, octave, scale, v, ev) in featuresInOctave:
-            realX = x * np.power(2, octave)
-            realY = y * np.power(2, octave)
-            # ...
-            radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
-            drawSmallCircle(draw, realX, realY, width = radius)
-    for edgesRemovedInOctave in edgesRemoved:
-        for (y, x, octave, scale, v, ev) in edgesRemovedInOctave:
-            realX = x * np.power(2, octave)
-            realY = y * np.power(2, octave)
-            # ...
-            radius = 5 + sigma * np.power(k, octave * scalesPerOctave + scale)
-            drawSmallCircle(draw, realX, realY, width = radius, outlineColor = (255, 0, 0))
+            drawFeature(draw, x, y, scale, octave)
+    if SHOULD_DRAW_REMOVED_LOWCONTRAST:
+        for featuresBelowThresholdInOctave in featuresBelowThreshold:
+            for (y, x, octave, scale, v, ev) in featuresBelowThresholdInOctave:
+                drawFeature(draw, x, y, scale, octave, outlineColor = COLORS['BLUE'])
+    if SHOULD_DRAW_REMOVED_EDGES:
+        for edgesRemovedInOctave in edgesRemoved:
+            for (y, x, octave, scale, v, ev) in edgesRemovedInOctave:
+                drawFeature(draw, x, y, scale, octave, outlineColor = COLORS['RED'])
     im.save(mkPath(filename, "-with-features"), "JPEG")
 
 def mkPath(filename, suffix):
@@ -63,27 +69,6 @@ def mkCurrentWindow(currentImage, y, x):
             currentImage[y-1, x+1],
             currentImage[y+1, x+1],
         ])
-
-def findFeatures1(allDiffImages):
-    features = []
-    for octave in range(octaves):
-        for scale in range(1, scalesPerOctave + 1):
-            print("Searching octave %d scale %d" % (octave, scale))
-            belowImage = allDiffImages[octave][scale - 1]
-            currentImage = allDiffImages[octave][scale]
-            aboveImage = allDiffImages[octave][scale + 1]
-            for y in range(1, currentImage.shape[0] - 2):
-                for x in range(1, currentImage.shape[1] - 2):
-                    belowWindow = belowImage[y-1:y+2,x-1:x+2]
-                    assert(belowWindow.shape == (3,3))
-                    aboveWindow = aboveImage[y-1:y+2,x-1:x+2]
-                    assert(aboveWindow.shape == (3,3))
-                    currentWindow = mkCurrentWindow(currentImage, y, x)
-                    if np.all(belowWindow > currentImage[y,x]) and np.all(aboveWindow > currentImage[y,x]) and np.all(currentWindow > currentImage[y,x]):
-                        features.append((y, x, octave, scale))
-                    if np.all(belowWindow < currentImage[y,x]) and np.all(aboveWindow < currentImage[y,x]) and np.all(currentWindow < currentImage[y,x]):
-                        features.append((y, x, octave, scale))
-    return features
 
 def buildMinMaxImages(allDiffImages):
     print("Building min/max arrays")
@@ -140,12 +125,6 @@ def findFeatures2(allDiffImages):
         features.append(featuresInOctave)
     return features
 
-# Not used in the end, only used as helper in debugging
-# def dxy(images, x, y, s):
-#     d1 = (images[s][y+1, x+1] - images[s][y+1,x-1]) / 2
-#     d2 = (images[s][y-1, x+1] - images[s][y-1,x-1]) / 2
-#     return (d1 - d2) / 2
-
 # Fast way to compute hessian
 # http://stackoverflow.com/questions/31206443/numpy-second-derivative-of-a-ndimensional-array
 # In our case, result is:
@@ -196,8 +175,8 @@ def computeExtremaValues(allDiffImages, features):
                     ])
                 hvec = -invHessian.dot(dDX)
                 extremaValue = flattenedDiffs[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(tmph).dot(hvec)
-                # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (flattenedDiffs[s][y,x], extremaValue, extremaValue - flattenedDiffs[s][y,x]))
                 featuresInOctaveWithExtremas.append(f + (flattenedDiffs[s][y,x], extremaValue))
+                # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (flattenedDiffs[s][y,x], extremaValue, extremaValue - flattenedDiffs[s][y,x]))
             else:
                 featuresInOctaveWithExtremas.append(f + (allDiffImages[octave][s][y, x], allDiffImages[octave][s][y,x]))
         featuresWithExtremas.append(np.array(featuresInOctaveWithExtremas))
@@ -205,17 +184,18 @@ def computeExtremaValues(allDiffImages, features):
 
 def filterFeaturesAboveThreshold(features):
     featuresAboveThreshold = []
+    featuresBelowThreshold = []
     for featuresInOctave in features:
         featuresAboveThreshold.append(featuresInOctave[np.abs(featuresInOctave[:,5] > THRESHOLD)])
-    return featuresAboveThreshold
+        featuresBelowThreshold.append(featuresInOctave[np.abs(featuresInOctave[:,5] <= THRESHOLD)])
+    return (featuresAboveThreshold, featuresBelowThreshold)
 
 def filterFeatures(allDiffImages, features):
     print("== Filtering features...")
 
     featuresWithExtremas = computeExtremaValues(allDiffImages, features)
 
-    featuresAboveThreshold = filterFeaturesAboveThreshold(featuresWithExtremas)
-    print("Threshold filtered to %d" % len(featuresAboveThreshold))
+    (featuresAboveThreshold, featuresBelowThreshold) = filterFeaturesAboveThreshold(featuresWithExtremas)
 
     flattenedDiffs = np.array(allDiffImages[0])
     hessian2x2 = []
@@ -241,7 +221,7 @@ def filterFeatures(allDiffImages, features):
         notEdges.append(notEdgesInOctave)
         edgesRemoved.append(edgesRemovedInOctave)
 
-    return (np.array(notEdges), np.array(edgesRemoved))
+    return (notEdges, featuresBelowThreshold, edgesRemoved)
 
 def findDiffImages(filename):
     image = scipy.ndimage.imread(filename, flatten = True) # loading in grey scale
@@ -276,11 +256,11 @@ def siftCornerDetector(filename):
     print("Found %d features in %f" % (featuresAmount(features), t2 - t1))
 
     t1 = time.time()
-    (features2, edgesRemoved) = filterFeatures(allDiffImages, features)
+    (features2, featuresBelowThreshold, edgesRemoved) = filterFeatures(allDiffImages, features)
     t2 = time.time()
-    print("Filtered to %d features in %f (%d low-contrast removed, %d edges removed)" % (featuresAmount(features2), t2 - t1, len([]), featuresAmount(edgesRemoved)))
+    print("Filtered to %d features in %f (%d low-contrast removed, %d edges removed)" % (featuresAmount(features2), t2 - t1, featuresAmount(featuresBelowThreshold), featuresAmount(edgesRemoved)))
 
-    drawFeatures(filename, features2, edgesRemoved)
+    drawFeatures(filename, features2, featuresBelowThreshold, edgesRemoved)
 
 def run():
     filenames = [
