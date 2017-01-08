@@ -156,7 +156,7 @@ def computeExtremaValues(allDiffImages, features):
     for octave in range(octaves):
         featuresInOctave = features[octave]
         # TODO: That could be done once, no need to make this array each time - or maybe it is even already done?
-        diffsInOctave = allDiffImages[0]
+        diffsInOctave = allDiffImages[octave]
         fullHessian = hessian(diffsInOctave)
 
         featuresInOctaveWithExtremas = []
@@ -164,22 +164,18 @@ def computeExtremaValues(allDiffImages, features):
             (y, x, octave, s) = f
 
             localHessian = fullHessian[:, :, s, y, x]
-            try:
-                invHessian = np.linalg.inv(localHessian)
-                # TODO: This could be optimized using np.gradient
-                dDX = np.array([
-                        (diffsInOctave[s+1][y, x] - diffsInOctave[s-1][y, x]) / 2,
-                        (diffsInOctave[s][y+1, x] - diffsInOctave[s][y-1, x]) / 2,
-                        (diffsInOctave[s][y, x+1] - diffsInOctave[s][y, x-1]) / 2,
-                    ])
-                hvec = -invHessian.dot(dDX)
-                # This could be done in pure numpy?
-                extremaValue = diffsInOctave[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(localHessian).dot(hvec)
-                featuresInOctaveWithExtremas.append(f + (diffsInOctave[s][y,x], extremaValue))
-                # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (diffsInOctave[s][y,x], extremaValue, extremaValue - diffsInOctave[s][y,x]))
-            except numpy.linalg.linalg.LinAlgError:
-                # print("Warning: Singular matrix")
-                featuresInOctaveWithExtremas.append(f + (diffsInOctave[s][y,x], diffsInOctave[s][y,x]))
+            invHessian = np.linalg.inv(localHessian)
+            # TODO: This could be optimized using np.gradient
+            dDX = np.array([
+                    (diffsInOctave[s+1][y, x] - diffsInOctave[s-1][y, x]) / 2,
+                    (diffsInOctave[s][y+1, x] - diffsInOctave[s][y-1, x]) / 2,
+                    (diffsInOctave[s][y, x+1] - diffsInOctave[s][y, x-1]) / 2,
+                ])
+            hvec = -invHessian.dot(dDX)
+            # This could be done in pure numpy?
+            extremaValue = diffsInOctave[s][y, x] + dDX.dot(hvec) + 0.5*hvec.dot(localHessian).dot(hvec)
+            featuresInOctaveWithExtremas.append(f + (diffsInOctave[s][y,x], extremaValue))
+            # print("Normal value = %f \t Extrema value = %f \t Diff = %f" % (diffsInOctave[s][y,x], extremaValue, extremaValue - diffsInOctave[s][y,x]))
         featuresWithExtremas.append(np.array(featuresInOctaveWithExtremas))
     return featuresWithExtremas
 
