@@ -8,6 +8,7 @@ import PIL as pil
 import os.path
 import Image, ImageDraw
 import time
+from operator import itemgetter
 
 WINDOW_RADIUS = 20 # So the window will be 41x41
 ORIENTATION_BINS = 36
@@ -48,7 +49,7 @@ def drawFeature(draw, x, y, scale, octave, peaks, outlineColor = COLORS['GREEN']
     normalizedPeaks = [ (i, v / maxPeakV) for (i,v) in peaks ]
     for (peakIndex, peakValue) in normalizedPeaks:
         lineLength = radius * peakValue
-        angle = peakIndex * 10.0
+        angle = peakIndex * ORIENTATION_BIN_ANGLE
         draw.line([
             (realX, realY),
             (realX + lineLength * np.cos(np.radians(angle)), realY + lineLength * np.sin(np.radians(angle)))
@@ -66,62 +67,53 @@ def mkPath(filename, suffix):
     basePath, extPath = os.path.splitext(filename)
     return (basePath + suffix + extPath)
 
-
 def siftDescriptor(fileset):
     (imageFilename, featuresFilename) = fileset
 
-    # featuresMatFilename1 = "data/Notre Dame/1_o-featuresmat.mat"
-    # featuresMatFilename2 = "data/Notre Dame/2_o-featuresmat.mat"
+    features = sc.io.loadmat(featuresFilename)['fts']
 
-    features1 = sc.io.loadmat(featuresFilename)['fts']
-    # features2 = sc.io.loadmat(featuresMatFilename2)['fts']
+    image = scipy.ndimage.imread(imageFilename, flatten = True)
 
-    # filename1 = "data/Notre Dame/1_o.jpg"
-    # filename2 = "data/Notre Dame/2_o.jpg"
-
-    image1 = scipy.ndimage.imread(imageFilename, flatten = True)
-    gaussianImages1 = findAllGaussianImages(image1)
+    print("Finding gaussian images...")
+    gaussianImages = findAllGaussianImages(image)
 
     print("Looking through features...")
     featuresWithOrientation = []
-    for f in features1:
+    for f in features:
         (y, x, octave, scale, v, ev) = f
         octave = int(octave)
         scale = int(scale)
         y = int(y)
         x = int(x)
-        image = gaussianImages1[octave][scale]
+        image = gaussianImages[octave][scale]
         (height, width) = image.shape
+        # TODO: Do something with that - add np.pad?
         if (x <= WINDOW_RADIUS + 1) or (x >= width - WINDOW_RADIUS - 1) or (y <= WINDOW_RADIUS + 1) or (y >= height - WINDOW_RADIUS - 1):
             continue
 
-        obins = [ [] for i in range(ORIENTATION_BINS) ]
         window = image[(y - WINDOW_RADIUS - 1):(y + WINDOW_RADIUS + 2), (x - WINDOW_RADIUS - 1):(x + WINDOW_RADIUS + 2)]
-        # convolve window with the gaussian here
-        for py in range(1, 2 * WINDOW_RADIUS + 1):
-            for px in range(1, 2 * WINDOW_RADIUS + 1):
-                magnitude = np.sqrt(np.square(window[py, px+1] - window[py, px-1]) + np.square(window[py+1, px] - window[py-1, px]))
+        angles = np.empty((2 * WINDOW_RADIUS + 1, 2 * WINDOW_RADIUS + 1))
+        magnitudes = np.empty((2 * WINDOW_RADIUS + 1, 2 * WINDOW_RADIUS + 1))
+        magnitudesWithGaussian = sc.ndimage.filters.gaussian_filter(magnitudes, SIGMA * np.power(SIGMA_K, scale))
+        for py in range(1, 2 * WINDOW_RADIUS + 2):
+            for px in range(1, 2 * WINDOW_RADIUS + 2):
+                # This double-loop can be optimized with element-wise numpy operations
+                gx = window[py, px + 1] - window[py, px - 1]
+                magnitudes[py - 1, px - 1] = np.sqrt(np.square(gx) + np.square(window[py+1, px] - window[py-1, px]))
                 # https://en.wikipedia.org/wiki/Scale-invariant_feature_transform#Orientation_assignment
-                angle = 180.0 + np.degrees(np.arctan2((window[py+1, px] - window[py-1, px]), (window[py, px+1] - window[py, px-1])))
-                # print("Point (%d, %d) -> (%d, %d) | Magnitude: %f | Angle: %f" % (x, y, px, py, magnitude, angle))
-                bin_number = int(angle / (360.0 / ORIENTATION_BINS))
-                if bin_number == ORIENTATION_BINS: # Better: if angle == 360.0
-                    bin_number = ORIENTATION_BINS - 1
-                assert(bin_number >= 0 and bin_number < ORIENTATION_BINS)
-                obins[bin_number].append((px, py, angle, magnitude))
-        sortedObins = sorted([ (i, data) for (i, data) in enumerate(obins) ], key = lambda (i,vs): sum([ ii[3] for ii in vs ]) )
+                angles[py - 1, px - 1] = 180.0 + np.degrees(np.arctan2((window[py+1, px] - window[py-1, px]), (window[py, px+1] - window[py, px-1])))
+
+        (hist, bin_edges) = np.histogram(angles, bins = ORIENTATION_BINS, range = (0., 360.), weights = magnitudesWithGaussian)
+
         peaks = []
-        for (i, es) in reversed(sortedObins):
-            currentSum = sum([ ii[3] for ii in es ])
+        for (i, v) in reversed(sorted(enumerate(hist), key = itemgetter(1) )):
             if peaks == []:
-                peaks.append((i, currentSum))
+                peaks.append((i, v))
             elif len(peaks) < 4:
-                lastPeak = peaks[-1]
-                if currentSum > 0.8 * lastPeak[1]:
-                    peaks.append((i, currentSum))
-        # peaks = [(max_s, max_i)]
+                if v > 0.8 * peaks[-1][1]:
+                    peaks.append((i, v))
         featuresWithOrientation.append((y, x, octave, scale, v, ev, peaks))
-        print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
+        # print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
 
     drawFeatures(imageFilename, featuresWithOrientation)
 
@@ -129,10 +121,10 @@ def run():
     filesets = [
             ("data/Notre Dame/1_o.jpg", "data/Notre Dame/1_o-featuresmat.mat"),
             ("data/Notre Dame/2_o.jpg", "data/Notre Dame/2_o-featuresmat.mat"),
-            # "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
-            # "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
-            # "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
-            # "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
+            ("data/Mount Rushmore/9021235130_7c2acd9554_o.jpg", "data/Mount Rushmore/9021235130_7c2acd9554_o-featuresmat.mat"),
+            ("data/Mount Rushmore/9318872612_a255c874fb_o.jpg","data/Mount Rushmore/9318872612_a255c874fb_o-featuresmat.mat"),
+            ("data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg", "data/Episcopal Gaudi/3743214471_1b5bbfda98_o-featuresmat.mat"),
+            ("data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg", "data/Episcopal Gaudi/4386465943_8cf9776378_o-featuresmat.mat"),
         ]
 
     for fileset in filesets:
