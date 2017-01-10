@@ -9,7 +9,7 @@ import os.path
 import Image, ImageDraw
 import time
 
-octaves = 4
+octaves = 4 # Other sources suggest using log2(min(height, width)), so it would be 10 in our examples
 scalesPerOctave = 3
 sigma = 1.6
 k = np.power(2, 1.0 / scalesPerOctave)
@@ -53,6 +53,10 @@ def drawFeatures(filename, features, featuresBelowThreshold, edgesRemoved):
             for (y, x, octave, scale, v, ev) in edgesRemovedInOctave:
                 drawFeature(draw, x, y, scale, octave, outlineColor = COLORS['RED'])
     im.save(mkPath(filename, "-with-features"), "JPEG")
+
+def saveFeatures(filename, features):
+    basePath, extPath = os.path.splitext(filename)
+    sc.io.savemat(basePath + "-featuresmat", { 'fts': np.vstack(features) })
 
 def mkPath(filename, suffix):
     basePath, extPath = os.path.splitext(filename)
@@ -262,6 +266,7 @@ def siftCornerDetector(filename):
     t2 = time.time()
     print("Filtered to %d features in %f (%d low-contrast removed, %d edges removed)" % (featuresAmount(features2), t2 - t1, featuresAmount(featuresBelowThreshold), featuresAmount(edgesRemoved)))
 
+    saveFeatures(filename, features2)
     drawFeatures(filename, features2, featuresBelowThreshold, edgesRemoved)
 
 def run():
