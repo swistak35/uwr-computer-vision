@@ -14,6 +14,8 @@ ORIENTATION_BINS = 36
 OCTAVES = 4
 SCALES_PER_OCTAVE = 3
 SIGMA = 1.6
+
+ORIENTATION_BIN_ANGLE = 360.0 / ORIENTATION_BINS
 SIGMA_K = np.power(2, 1.0 / SCALES_PER_OCTAVE)
 
 COLORS = {
@@ -64,68 +66,77 @@ def mkPath(filename, suffix):
     basePath, extPath = os.path.splitext(filename)
     return (basePath + suffix + extPath)
 
-featuresMatFilename1 = "data/Notre Dame/1_o-featuresmat.mat"
-# featuresMatFilename2 = "data/Notre Dame/2_o-featuresmat.mat"
 
-features1 = sc.io.loadmat(featuresMatFilename1)['fts']
-# features2 = sc.io.loadmat(featuresMatFilename2)['fts']
+def siftDescriptor(fileset):
+    (imageFilename, featuresFilename) = fileset
 
-filename1 = "data/Notre Dame/1_o.jpg"
-# filename2 = "data/Notre Dame/2_o.jpg"
+    # featuresMatFilename1 = "data/Notre Dame/1_o-featuresmat.mat"
+    # featuresMatFilename2 = "data/Notre Dame/2_o-featuresmat.mat"
 
-image1 = scipy.ndimage.imread(filename1, flatten = True)
-gaussianImages1 = findAllGaussianImages(image1)
+    features1 = sc.io.loadmat(featuresFilename)['fts']
+    # features2 = sc.io.loadmat(featuresMatFilename2)['fts']
 
-print("Looking through features...")
-featuresWithOrientation = []
-for f in features1:
-    (y, x, octave, scale, v, ev) = f
-    octave = int(octave)
-    scale = int(scale)
-    y = int(y)
-    x = int(x)
-    image = gaussianImages1[octave][scale]
-    (height, width) = image.shape
-    if (x <= WINDOW_RADIUS + 1) or (x >= width - WINDOW_RADIUS - 1) or (y <= WINDOW_RADIUS + 1) or (y >= height - WINDOW_RADIUS - 1):
-        continue
+    # filename1 = "data/Notre Dame/1_o.jpg"
+    # filename2 = "data/Notre Dame/2_o.jpg"
 
-    obins = [ [] for i in range(ORIENTATION_BINS) ]
-    window = image[(y - WINDOW_RADIUS - 1):(y + WINDOW_RADIUS + 2), (x - WINDOW_RADIUS - 1):(x + WINDOW_RADIUS + 2)]
-    # convolve window with the gaussian here
-    for py in range(1, 2 * WINDOW_RADIUS + 1):
-        for px in range(1, 2 * WINDOW_RADIUS + 1):
-            magnitude = np.sqrt(np.square(window[py, px+1] - window[py, px-1]) + np.square(window[py+1, px] - window[py-1, px]))
-            # https://en.wikipedia.org/wiki/Scale-invariant_feature_transform#Orientation_assignment
-            angle = 180.0 + np.degrees(np.arctan2((window[py+1, px] - window[py-1, px]), (window[py, px+1] - window[py, px-1])))
-            # print("Point (%d, %d) -> (%d, %d) | Magnitude: %f | Angle: %f" % (x, y, px, py, magnitude, angle))
-            bin_number = int(angle / (360.0 / ORIENTATION_BINS))
-            if bin_number == ORIENTATION_BINS: # Better: if angle == 360.0
-                bin_number = ORIENTATION_BINS - 1
-            assert(bin_number >= 0 and bin_number < ORIENTATION_BINS)
-            obins[bin_number].append((px, py, angle, magnitude))
-    sortedObins = sorted([ (i, data) for (i, data) in enumerate(obins) ], key = lambda (i,vs): sum([ ii[3] for ii in vs ]) )
-    peaks = []
-    for (i, es) in reversed(sortedObins):
-        currentSum = sum([ ii[3] for ii in es ])
-        if peaks == []:
-            peaks.append((i, currentSum))
-        elif len(peaks) < 4:
-            lastPeak = peaks[-1]
-            if currentSum > 0.8 * lastPeak[1]:
+    image1 = scipy.ndimage.imread(imageFilename, flatten = True)
+    gaussianImages1 = findAllGaussianImages(image1)
+
+    print("Looking through features...")
+    featuresWithOrientation = []
+    for f in features1:
+        (y, x, octave, scale, v, ev) = f
+        octave = int(octave)
+        scale = int(scale)
+        y = int(y)
+        x = int(x)
+        image = gaussianImages1[octave][scale]
+        (height, width) = image.shape
+        if (x <= WINDOW_RADIUS + 1) or (x >= width - WINDOW_RADIUS - 1) or (y <= WINDOW_RADIUS + 1) or (y >= height - WINDOW_RADIUS - 1):
+            continue
+
+        obins = [ [] for i in range(ORIENTATION_BINS) ]
+        window = image[(y - WINDOW_RADIUS - 1):(y + WINDOW_RADIUS + 2), (x - WINDOW_RADIUS - 1):(x + WINDOW_RADIUS + 2)]
+        # convolve window with the gaussian here
+        for py in range(1, 2 * WINDOW_RADIUS + 1):
+            for px in range(1, 2 * WINDOW_RADIUS + 1):
+                magnitude = np.sqrt(np.square(window[py, px+1] - window[py, px-1]) + np.square(window[py+1, px] - window[py-1, px]))
+                # https://en.wikipedia.org/wiki/Scale-invariant_feature_transform#Orientation_assignment
+                angle = 180.0 + np.degrees(np.arctan2((window[py+1, px] - window[py-1, px]), (window[py, px+1] - window[py, px-1])))
+                # print("Point (%d, %d) -> (%d, %d) | Magnitude: %f | Angle: %f" % (x, y, px, py, magnitude, angle))
+                bin_number = int(angle / (360.0 / ORIENTATION_BINS))
+                if bin_number == ORIENTATION_BINS: # Better: if angle == 360.0
+                    bin_number = ORIENTATION_BINS - 1
+                assert(bin_number >= 0 and bin_number < ORIENTATION_BINS)
+                obins[bin_number].append((px, py, angle, magnitude))
+        sortedObins = sorted([ (i, data) for (i, data) in enumerate(obins) ], key = lambda (i,vs): sum([ ii[3] for ii in vs ]) )
+        peaks = []
+        for (i, es) in reversed(sortedObins):
+            currentSum = sum([ ii[3] for ii in es ])
+            if peaks == []:
                 peaks.append((i, currentSum))
-    # peaks = [(max_s, max_i)]
-    featuresWithOrientation.append((y, x, octave, scale, v, ev, peaks))
-    print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
+            elif len(peaks) < 4:
+                lastPeak = peaks[-1]
+                if currentSum > 0.8 * lastPeak[1]:
+                    peaks.append((i, currentSum))
+        # peaks = [(max_s, max_i)]
+        featuresWithOrientation.append((y, x, octave, scale, v, ev, peaks))
+        print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
 
-drawFeatures(filename1, featuresWithOrientation)
+    drawFeatures(imageFilename, featuresWithOrientation)
 
+def run():
+    filesets = [
+            ("data/Notre Dame/1_o.jpg", "data/Notre Dame/1_o-featuresmat.mat"),
+            ("data/Notre Dame/2_o.jpg", "data/Notre Dame/2_o-featuresmat.mat"),
+            # "data/Mount Rushmore/9021235130_7c2acd9554_o.jpg",
+            # "data/Mount Rushmore/9318872612_a255c874fb_o.jpg",
+            # "data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg",
+            # "data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg",
+        ]
 
+    for fileset in filesets:
+        print("=== Files: (%s, %s)" % fileset)
+        siftDescriptor(fileset)
 
-# filenameImg1 = "921919841_a30df938f2_o.jpg"
-# filenameImg2 = "4191453057_c86028ce1f_o.jpg"
-# filenameMat = "data/Notre Dame/921919841_a30df938f2_o_to_4191453057_c86028ce1f_o.mat"
-# mat = sc.io.loadmat()
-# features1 = np.hstack((mat['x1'], mat['y1']))
-# features2 = np.hstack((mat['x2'], mat['y2']))
-
-
+run()
