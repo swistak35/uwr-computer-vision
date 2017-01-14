@@ -79,7 +79,7 @@ def siftDescriptor(fileset):
 
     print("Looking through features...")
     featuresWithOrientation = []
-    for f in features:
+    for fi,f in enumerate(features[0:5]):
         (y, x, octave, scale, v, ev) = f
         octave = int(octave)
         scale = int(scale)
@@ -113,18 +113,39 @@ def siftDescriptor(fileset):
                 if v > 0.8 * peaks[-1][1]:
                     peaks.append((i, v))
         featuresWithOrientation.append((y, x, octave, scale, v, ev, peaks))
-        # print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
+        print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
+
+        # for (currentAngleIndex, currentAngleMagnitude) in peaks:
+        #     currentAngle = np.radians(currentAngleIndex * ORIENTATION_BIN_ANGLE)
+        #     mw = np.arange(WINDOW_RADIUS * 2 + 1) - WINDOW_RADIUS
+        #     (cx, cy) = np.meshgrid(mw, mw)
+        #     pointsRaw = np.asfarray(np.stack((cx,cy), axis = 2).reshape(-1, 2))
+        #     pointsTranslated = pointsRaw + [x, y]
+        #     # Counter clockwise rotation!
+        #     # o[0].dot(R)
+        #     # drawFeatureExtensive((y, x, octave, scale, currentAngle))
+        #     featurePatch1 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
+        #     sc.misc.imsave(mkPath(imageFilename, "-feature-%d-1" % fi), featurePatch1)
+
+        #     agl = 2*np.pi - (np.pi / 2 + currentAngle)
+        #     R = np.array([[np.cos(agl), -np.sin(agl)], [np.sin(agl), np.cos(agl)]])
+        #     pointsRotatedAndTranslated = pointsRaw.dot(R) + [x, y]
+        #     featurePatch2 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsRotatedAndTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
+        #     sc.misc.imsave(mkPath(imageFilename, "-feature-%d-2" % fi), featurePatch2)
+
+
+
 
     drawFeatures(imageFilename, featuresWithOrientation)
 
 def run():
     filesets = [
             ("data/Notre Dame/1_o.jpg", "data/Notre Dame/1_o-featuresmat.mat"),
-            ("data/Notre Dame/2_o.jpg", "data/Notre Dame/2_o-featuresmat.mat"),
-            ("data/Mount Rushmore/9021235130_7c2acd9554_o.jpg", "data/Mount Rushmore/9021235130_7c2acd9554_o-featuresmat.mat"),
-            ("data/Mount Rushmore/9318872612_a255c874fb_o.jpg","data/Mount Rushmore/9318872612_a255c874fb_o-featuresmat.mat"),
-            ("data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg", "data/Episcopal Gaudi/3743214471_1b5bbfda98_o-featuresmat.mat"),
-            ("data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg", "data/Episcopal Gaudi/4386465943_8cf9776378_o-featuresmat.mat"),
+            # ("data/Notre Dame/2_o.jpg", "data/Notre Dame/2_o-featuresmat.mat"),
+            # ("data/Mount Rushmore/9021235130_7c2acd9554_o.jpg", "data/Mount Rushmore/9021235130_7c2acd9554_o-featuresmat.mat"),
+            # ("data/Mount Rushmore/9318872612_a255c874fb_o.jpg","data/Mount Rushmore/9318872612_a255c874fb_o-featuresmat.mat"),
+            # ("data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg", "data/Episcopal Gaudi/3743214471_1b5bbfda98_o-featuresmat.mat"),
+            # ("data/Episcopal Gaudi/4386465943_8cf9776378_o.jpg", "data/Episcopal Gaudi/4386465943_8cf9776378_o-featuresmat.mat"),
         ]
 
     for fileset in filesets:
