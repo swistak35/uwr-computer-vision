@@ -26,6 +26,7 @@ COLORS = {
 }
 
 def findAllGaussianImages(image):
+    # Would be nice to save all these images with respective features
     allGaussianImages = []
     for octave in range(OCTAVES):
         gaussianImages = []
@@ -46,14 +47,15 @@ def drawFeature(draw, x, y, scale, octave, peaks, outlineColor = COLORS['GREEN']
     radius = 3 + SIGMA * np.power(SIGMA_K, scale) * np.power(2, octave)
     drawSmallCircle(draw, realX, realY, width = radius, outlineColor = outlineColor)
     maxPeakV = peaks[0][1]
-    normalizedPeaks = [ (i, v / maxPeakV) for (i,v) in peaks ]
-    for (peakIndex, peakValue) in normalizedPeaks:
-        lineLength = radius * peakValue
-        angle = peakIndex * ORIENTATION_BIN_ANGLE
-        draw.line([
-            (realX, realY),
-            (realX + lineLength * np.cos(np.radians(angle)), realY + lineLength * np.sin(np.radians(angle)))
-        ])
+    if maxPeakV != 0: # how is that possible that there are zeros?
+        normalizedPeaks = [ (i, v / maxPeakV) for (i,v) in peaks ]
+        for (peakIndex, peakValue) in normalizedPeaks:
+            lineLength = radius * peakValue
+            angle = peakIndex * ORIENTATION_BIN_ANGLE
+            draw.line([
+                (realX, realY),
+                (realX + lineLength * np.cos(np.radians(angle)), realY + lineLength * np.sin(np.radians(angle)))
+            ])
 
 def drawFeatures(filename, features):
     im = Image.open(filename)
@@ -79,7 +81,7 @@ def siftDescriptor(fileset):
 
     print("Looking through features...")
     featuresWithOrientation = []
-    for fi,f in enumerate(features[0:5]):
+    for fi,f in enumerate(features[::10]):
         (y, x, octave, scale, v, ev) = f
         octave = int(octave)
         scale = int(scale)
@@ -113,29 +115,41 @@ def siftDescriptor(fileset):
                 if v > 0.8 * peaks[-1][1]:
                     peaks.append((i, v))
         featuresWithOrientation.append((y, x, octave, scale, v, ev, peaks))
+        # We could print here real coordinates, not on the gaussian image ones
         print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
 
-        # for (currentAngleIndex, currentAngleMagnitude) in peaks:
-        #     currentAngle = np.radians(currentAngleIndex * ORIENTATION_BIN_ANGLE)
-        #     mw = np.arange(WINDOW_RADIUS * 2 + 1) - WINDOW_RADIUS
-        #     (cx, cy) = np.meshgrid(mw, mw)
-        #     pointsRaw = np.asfarray(np.stack((cx,cy), axis = 2).reshape(-1, 2))
-        #     pointsTranslated = pointsRaw + [x, y]
-        #     # Counter clockwise rotation!
-        #     # o[0].dot(R)
-        #     # drawFeatureExtensive((y, x, octave, scale, currentAngle))
-        #     featurePatch1 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
-        #     sc.misc.imsave(mkPath(imageFilename, "-feature-%d-1" % fi), featurePatch1)
+        for (currentAngleIndex, currentAngleMagnitude) in peaks:
+            currentAngle = np.radians(currentAngleIndex * ORIENTATION_BIN_ANGLE)
+            # Should be 18x18
+            mw = np.arange(18) - 8.5
+            (cx, cy) = np.meshgrid(mw, mw)
+            pointsRaw = np.asfarray(np.stack((cx,cy), axis = 2).reshape(-1, 2))
+            pointsTranslated = pointsRaw + [x, y]
+            # Counter clockwise rotation!
+            # o[0].dot(R)
+            # drawFeatureExtensive((y, x, octave, scale, currentAngle))
+            featurePatch1 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
+            sc.misc.imsave(mkPath(imageFilename, "-feature-%d-1" % fi), featurePatch1)
 
-        #     agl = 2*np.pi - (np.pi / 2 + currentAngle)
-        #     R = np.array([[np.cos(agl), -np.sin(agl)], [np.sin(agl), np.cos(agl)]])
-        #     pointsRotatedAndTranslated = pointsRaw.dot(R) + [x, y]
-        #     featurePatch2 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsRotatedAndTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
-        #     sc.misc.imsave(mkPath(imageFilename, "-feature-%d-2" % fi), featurePatch2)
+            agl = 2*np.pi - (np.pi / 2 + currentAngle)
+            R = np.array([[np.cos(agl), -np.sin(agl)], [np.sin(agl), np.cos(agl)]])
+            pointsRotatedAndTranslated = pointsRaw.dot(R) + [x, y]
+            featurePatch2 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsRotatedAndTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
+            sc.misc.imsave(mkPath(imageFilename, "-feature-%d-2" % fi), featurePatch2)
+
+            pointsScaled = pointsRaw * np.power(SIGMA_K, scale) # scale? maybe scale-1 or scale+1?
+            pointsScaledRotatedAndTranslated = pointsScaled.dot(R) + [x, y]
+            featurePatch3 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsScaledRotatedAndTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
+            sc.misc.imsave(mkPath(imageFilename, "-feature-%d-3" % fi), featurePatch3)
+
+            # Najpierw powinien byc smoothing gaussem, przed robieniem histogramów
 
 
 
 
+
+    # draw numbers on image?
+    # make the circle the same as there's scaling in feature descripting?
     drawFeatures(imageFilename, featuresWithOrientation)
 
 def run():
