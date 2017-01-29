@@ -96,7 +96,6 @@ def siftDescriptor(fileset):
         window = image[(y - WINDOW_RADIUS - 1):(y + WINDOW_RADIUS + 2), (x - WINDOW_RADIUS - 1):(x + WINDOW_RADIUS + 2)]
         angles = np.empty((2 * WINDOW_RADIUS + 1, 2 * WINDOW_RADIUS + 1))
         magnitudes = np.empty((2 * WINDOW_RADIUS + 1, 2 * WINDOW_RADIUS + 1))
-        magnitudesWithGaussian = sc.ndimage.filters.gaussian_filter(magnitudes, SIGMA * np.power(SIGMA_K, scale))
         for py in range(1, 2 * WINDOW_RADIUS + 2):
             for px in range(1, 2 * WINDOW_RADIUS + 2):
                 # This double-loop can be optimized with element-wise numpy operations
@@ -104,6 +103,8 @@ def siftDescriptor(fileset):
                 magnitudes[py - 1, px - 1] = np.sqrt(np.square(gx) + np.square(window[py+1, px] - window[py-1, px]))
                 # https://en.wikipedia.org/wiki/Scale-invariant_feature_transform#Orientation_assignment
                 angles[py - 1, px - 1] = 180.0 + np.degrees(np.arctan2((window[py+1, px] - window[py-1, px]), (window[py, px+1] - window[py, px-1])))
+        # Times 1.5!
+        magnitudesWithGaussian = sc.ndimage.filters.gaussian_filter(magnitudes, SIGMA * np.power(SIGMA_K, scale))
 
         (hist, bin_edges) = np.histogram(angles, bins = ORIENTATION_BINS, range = (0., 360.), weights = magnitudesWithGaussian)
 
@@ -142,7 +143,11 @@ def siftDescriptor(fileset):
             featurePatch3 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsScaledRotatedAndTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
             sc.misc.imsave(mkPath(imageFilename, "-feature-%d-3" % fi), featurePatch3)
 
-            # Najpierw powinien byc smoothing gaussem, przed robieniem histogramów
+            gradients = np.gradient(pointsScaledRotatedAndTranslated, axis = 0)
+            # hist11 =
+            # Gaussing after making a gradient or before?
+            # Should it be gradient magnitudes from above, or just gradients? What's the difference?
+            # Najpierw powinien byc smoothing gaussem, przed robieniem histogramow
 
 
 
