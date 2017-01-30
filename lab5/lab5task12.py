@@ -25,6 +25,12 @@ COLORS = {
     'BLUE': (0, 0, 255),
 }
 
+def saveFeatureDescriptors(imageFilename, featureDescriptors):
+    basePath, extPath = os.path.splitext(imageFilename)
+    scipy.io.savemat(basePath + "-features", {
+            'features': featureDescriptors
+        })
+
 def findAllGaussianImages(image):
     # Would be nice to save all these images with respective features
     allGaussianImages = []
@@ -80,8 +86,10 @@ def siftDescriptor(fileset):
     gaussianImages = findAllGaussianImages(image)
 
     print("Looking through features...")
+    featureDescriptors = []
     featuresWithOrientation = []
-    for fi,f in enumerate(features[::10]):
+    # for fi,f in enumerate(features[::10]):
+    for fi,f in enumerate(features):
         (y, x, octave, scale, v, ev) = f
         octave = int(octave)
         scale = int(scale)
@@ -102,6 +110,7 @@ def siftDescriptor(fileset):
                 gx = window[py, px + 1] - window[py, px - 1]
                 magnitudes[py - 1, px - 1] = np.sqrt(np.square(gx) + np.square(window[py+1, px] - window[py-1, px]))
                 # https://en.wikipedia.org/wiki/Scale-invariant_feature_transform#Orientation_assignment
+                # Tu nie powinno byc aby czasem angles[py, px] = ... ?
                 angles[py - 1, px - 1] = 180.0 + np.degrees(np.arctan2((window[py+1, px] - window[py-1, px]), (window[py, px+1] - window[py, px-1])))
         # Times 1.5!
         magnitudesWithGaussian = sc.ndimage.filters.gaussian_filter(magnitudes, SIGMA * np.power(SIGMA_K, scale))
@@ -129,25 +138,43 @@ def siftDescriptor(fileset):
             # Counter clockwise rotation!
             # o[0].dot(R)
             # drawFeatureExtensive((y, x, octave, scale, currentAngle))
-            featurePatch1 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
+            featurePatch1 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsTranslated).T).reshape(18, 18)
             sc.misc.imsave(mkPath(imageFilename, "-feature-%d-1" % fi), featurePatch1)
 
             agl = 2*np.pi - (np.pi / 2 + currentAngle)
             R = np.array([[np.cos(agl), -np.sin(agl)], [np.sin(agl), np.cos(agl)]])
             pointsRotatedAndTranslated = pointsRaw.dot(R) + [x, y]
-            featurePatch2 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsRotatedAndTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
+            featurePatch2 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsRotatedAndTranslated).T).reshape(18, 18)
             sc.misc.imsave(mkPath(imageFilename, "-feature-%d-2" % fi), featurePatch2)
 
             pointsScaled = pointsRaw * np.power(SIGMA_K, scale) # scale? maybe scale-1 or scale+1?
             pointsScaledRotatedAndTranslated = pointsScaled.dot(R) + [x, y]
-            featurePatch3 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsScaledRotatedAndTranslated).T).reshape(WINDOW_RADIUS * 2 + 1, WINDOW_RADIUS * 2 + 1)
+            featurePatch3 = sc.ndimage.interpolation.map_coordinates(image, np.fliplr(pointsScaledRotatedAndTranslated).T).reshape(18, 18)
             sc.misc.imsave(mkPath(imageFilename, "-feature-%d-3" % fi), featurePatch3)
 
-            gradients = np.gradient(pointsScaledRotatedAndTranslated, axis = 0)
-            # hist11 =
+            finalPatch = featurePatch3
+
+            # gradients = np.gradient(pointsScaledRotatedAndTranslated, axis = 0)
+            histograms = np.empty((4,4,8))
+            for ry in range(4):
+                for rx in range(4):
+                    subpatch = np.empty((4,4))
+                    subpatchMagnitudes = np.empty((4,4))
+                    for syt in range(4):
+                        for sxt in range(4):
+                            sy = 1 + ry*4 + syt
+                            sx = 1 + rx*4 + sxt
+                            subpatchMagnitudes[syt,sxt] = np.sqrt(np.square(finalPatch[sy, sx + 1] - finalPatch[sy, sx - 1]) + np.square(finalPatch[sy+1, sx] - finalPatch[sy-1, sx]))
+                            subpatch[syt,sxt] = 180.0 + np.degrees(np.arctan2((finalPatch[sy+1, sx] - finalPatch[sy-1, sx]), (finalPatch[sy, sx+1] - finalPatch[sy, sx-1])))
+                    # (hist, bin_edges) = np.histogram(angles, bins = ORIENTATION_BINS, range = (0., 360.), weights = magnitudesWithGaussian)
+                    # Weights should be added here
+                    (hist, bin_edges) = np.histogram(subpatch, bins = 8, range = (0., 360.), weights = subpatchMagnitudes)
+                    histograms[ry,rx] = hist
+            featureDescriptors.append(np.hstack(((y, x, octave, scale, currentAngle), histograms.flatten())))
             # Gaussing after making a gradient or before?
             # Should it be gradient magnitudes from above, or just gradients? What's the difference?
             # Najpierw powinien byc smoothing gaussem, przed robieniem histogramow
+            # What about this tri-linear interpolation thing
 
 
 
@@ -156,11 +183,14 @@ def siftDescriptor(fileset):
     # draw numbers on image?
     # make the circle the same as there's scaling in feature descripting?
     drawFeatures(imageFilename, featuresWithOrientation)
+    saveFeatureDescriptors(imageFilename, featureDescriptors)
 
 def run():
     filesets = [
-            ("data/Notre Dame/1_o.jpg", "data/Notre Dame/1_o-featuresmat.mat"),
+            # ("data/Notre Dame/1_o.jpg", "data/Notre Dame/1_o-featuresmat.mat"),
             # ("data/Notre Dame/2_o.jpg", "data/Notre Dame/2_o-featuresmat.mat"),
+            ("data/duda/img_20170130_162706.jpg", "data/duda/img_20170130_162706-featuresmat.mat"),
+            ("data/duda/c3bxl_zweaywcbm.jpg", "data/duda/c3bxl_zweaywcbm-featuresmat.mat")
             # ("data/Mount Rushmore/9021235130_7c2acd9554_o.jpg", "data/Mount Rushmore/9021235130_7c2acd9554_o-featuresmat.mat"),
             # ("data/Mount Rushmore/9318872612_a255c874fb_o.jpg","data/Mount Rushmore/9318872612_a255c874fb_o-featuresmat.mat"),
             # ("data/Episcopal Gaudi/3743214471_1b5bbfda98_o.jpg", "data/Episcopal Gaudi/3743214471_1b5bbfda98_o-featuresmat.mat"),
