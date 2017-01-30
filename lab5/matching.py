@@ -11,7 +11,7 @@ OCTAVES = 4
 SCALES_PER_OCTAVE = 3
 SIGMA_K = np.power(2, 1.0 / SCALES_PER_OCTAVE)
 
-SANITY_THRESHOLD = 2000
+SANITY_THRESHOLD = 2.0
 
 COLORS = {
     'RED': (255, 0, 0),
@@ -21,6 +21,8 @@ COLORS = {
     'DUNNO2': (255, 0, 255),
     'DUNNO3': (255, 255, 0),
 }
+
+# TODO: There should be an option to display only "50 best" matches
 
 def getRandomColor():
     return random.choice(COLORS.values())
@@ -75,13 +77,17 @@ def drawMatches(imageFilename1, imageFilename2, matches):
     # TODO: Don't write to the same file
     imOut.save("matches.jpg", "JPEG")
 
-def matchImages(imageFilename1, imageFilename2):
+def matchImages(imageFilename1, imageFilename2, verificationFile):
     basePath1, extPath1 = os.path.splitext(imageFilename1)
     basePath2, extPath2 = os.path.splitext(imageFilename2)
     matFilename1 = basePath1 + "-features.mat"
     matFilename2 = basePath2 + "-features.mat"
     features1 = sc.io.loadmat(matFilename1)['features']
     features2 = sc.io.loadmat(matFilename2)['features']
+
+    mats = sc.io.loadmat(verificationFile)
+    verifiedFeatures = np.hstack((mats['x1'], mats['y1'], mats['x2'], mats['y2']))
+
     matches = []
     for fi, f in enumerate(features1):
         (y, x, octave, scale, angle) = f[0:5]
@@ -97,8 +103,23 @@ def matchImages(imageFilename1, imageFilename2):
         if (bestValue / secondValue) > 0.75:
             continue
         print("Found match for %d, value: %f" % (fi,bestValue))
-        # TODO: Add verification step - we have ground truth in files
         matches.append((f, features2[bestIdx]))
+
+        norms = np.linalg.norm(verifiedFeatures[:, 0:2] - (x, y), axis = 1)
+        foundNorms = verifiedFeatures[norms < 5.0]
+        if foundNorms.shape[0] == 0:
+            print("Verification: didn't find this feature in verification table")
+        else:
+            f2 = (features2[bestIdx][1], features2[bestIdx][0])
+            results = np.linalg.norm(foundNorms[:, 2:4] - f2, axis=1)
+            verifiedResults = foundNorms[results < 5.0]
+            if foundNorms.shape[0] == 1:
+                if verifiedResults.shape[0] == 1:
+                    print("Verification: Found and verified exactly one feature")
+                else:
+                    print("Verification: Found exactly one feature, but didn't verified it (distance: %f)" % (results[0]))
+            else:
+                print("Verification: Found multiple features")
 
     print("Found %d matches" % (len(matches)))
     drawMatches(imageFilename1, imageFilename2, matches)
@@ -106,7 +127,7 @@ def matchImages(imageFilename1, imageFilename2):
 
 def run():
     filesets = [
-            ("data/Notre Dame/1_o.jpg", "data/Notre Dame/2_o.jpg"),
+            ("data/Notre Dame/1_o.jpg", "data/Notre Dame/2_o.jpg", "data/Notre Dame/921919841_a30df938f2_o_to_4191453057_c86028ce1f_o.mat"),
             # ("data/duda/img_20170130_162706.jpg", "data/duda/c3bxl_zweaywcbm.jpg"),
             # ("data/Mount Rushmore/9021235130_7c2acd9554_o.jpg", "data/Mount Rushmore/9021235130_7c2acd9554_o-featuresmat.mat"),
             # ("data/Mount Rushmore/9318872612_a255c874fb_o.jpg","data/Mount Rushmore/9318872612_a255c874fb_o-featuresmat.mat"),
@@ -115,7 +136,7 @@ def run():
         ]
 
     for fileset in filesets:
-        print("=== Files: (%s, %s)" % fileset)
-        matchImages(fileset[0], fileset[1])
+        print("=== Files: (%s, %s)" % fileset[0:2])
+        matchImages(fileset[0], fileset[1], fileset[2])
 
 run()
