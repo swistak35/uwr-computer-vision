@@ -4,12 +4,14 @@ import scipy.misc
 import scipy.ndimage
 import numpy as np
 import numpy.linalg
-import PIL as pil
 import os.path
-import Image, ImageDraw
 import time
+import PIL as pil
+import Image, ImageDraw
 from operator import itemgetter
 from FeatureDescripting import FeatureDescripting
+from OrientationAssignment import OrientationAssignment
+from Drawing import Drawing
 
 WINDOW_RADIUS = 20 # So the window will be 41x41
 ORIENTATION_BINS = 36
@@ -28,23 +30,17 @@ COLORS = {
     'BLUE': (0, 0, 255),
 }
 
-def saveFeatureDescriptors(imageFilename, featureDescriptors):
-    basePath, extPath = os.path.splitext(imageFilename)
-    scipy.io.savemat(basePath + "-features", {
-            'features': featureDescriptors
-        })
-
-def findAllGaussianImages(image):
-    # Would be nice to save all these images with respective features
-    allGaussianImages = []
-    for octave in range(OCTAVES):
-        gaussianImages = []
-        for scale in range(SCALES_PER_OCTAVE + 3):
-            zoomedImage = sc.ndimage.zoom(image, np.power(0.5, octave))
-            gaussianImage = sc.ndimage.filters.gaussian_filter(zoomedImage, SIGMA * np.power(SIGMA_K, scale), order = 0)
-            gaussianImages.append(gaussianImage)
-        allGaussianImages.append(gaussianImages)
-    return allGaussianImages
+# def findAllGaussianImages(image):
+#     # Would be nice to save all these images with respective features
+#     allGaussianImages = []
+#     for octave in range(OCTAVES):
+#         gaussianImages = []
+#         for scale in range(SCALES_PER_OCTAVE + 3):
+#             zoomedImage = sc.ndimage.zoom(image, np.power(0.5, octave))
+#             gaussianImage = sc.ndimage.filters.gaussian_filter(zoomedImage, SIGMA * np.power(SIGMA_K, scale), order = 0)
+#             gaussianImages.append(gaussianImage)
+#         allGaussianImages.append(gaussianImages)
+#     return allGaussianImages
 
 def drawSmallCircle(draw, x, y, fillColor = None, outlineColor = COLORS['GREEN'], width = 2):
     # Top left and bottom right corners
@@ -157,9 +153,20 @@ def run():
 
     for fileset in filesets:
         print("=== Files: (%s, %s)" % fileset)
-        featuresWithOrientation = siftDescriptor(fileset)
-        fd = FeatureDescripting()
-        fd.compute(fileset[0], featuresWithOrientation)
+        (imageFilename, featureFilename) = fileset
+        basePath, extPath = os.path.splitext(imageFilename)
+        sourceImage = sc.ndimage.imread(imageFilename, flatten = True)
 
+        drawing = Drawing()
+
+        # featuresWithOrientation = siftDescriptor(fileset)
+        oa = OrientationAssignment()
+        (featuresWithOrientation2, featuresWithOrientationToDraw) = oa.compute(sourceImage, featureFilename)
+        drawing.drawFeaturesWithOrientations(imageFilename, basePath + "-with-features.jpg", featuresWithOrientationToDraw)
+
+        # Descripting
+        fd = FeatureDescripting()
+        featuresWithDescriptors = fd.compute(sourceImage, featuresWithOrientation2)
+        fd.saveFeatureDescriptors(basePath + "-features.mat", featuresWithDescriptors)
 
 run()

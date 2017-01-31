@@ -36,4 +36,25 @@ class SiftSettings:
         self.sigma = 1.6
         self.scalesPerOctave = 3
         self.octaves = 4
+        self.orientationWindowRadius = 20
         self.sigmaK = np.power(2, 1.0 / self.scalesPerOctave)
+        self.orientationBins = 36
+        self.orientationBinAngle = 360.0 / self.orientationBins
+
+import scipy as sc
+import scipy.ndimage
+
+class GaussianImagesSet:
+    def __init__(self, settings = SiftSettings()):
+        self.settings = settings
+
+    def compute(self, sourceImage):
+        allGaussianImages = []
+        for octave in range(self.settings.octaves):
+            gaussianImages = []
+            for scale in range(self.settings.scalesPerOctave + 3):
+                zoomedImage = sc.ndimage.zoom(sourceImage, np.power(0.5, octave))
+                gaussianImage = sc.ndimage.filters.gaussian_filter(zoomedImage, self.settings.sigma * np.power(self.settings.sigmaK, scale), order = 0)
+                gaussianImages.append(gaussianImage)
+            allGaussianImages.append(gaussianImages)
+        return allGaussianImages
