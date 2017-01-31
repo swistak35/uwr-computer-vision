@@ -29,3 +29,11 @@ DEBUG = False
 def debug(msg):
     if DEBUG:
         print("[DEBUG] %s" % msg)
+
+
+class SiftSettings:
+    def __init__(self):
+        self.sigma = 1.6
+        self.scalesPerOctave = 3
+        self.octaves = 4
+        self.sigmaK = np.power(2, 1.0 / self.scalesPerOctave)
