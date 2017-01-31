@@ -59,7 +59,7 @@ class OrientationAssignment:
                     if v > 0.8 * peaks[0][1]:
                         peaks.append((i, v))
             # We could print here real coordinates, not on the gaussian image ones
-            print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
+            # print("Point (%d, %d) -> Angles %s" % (x, y, peaks))
 
             featuresWithOrientationToDraw.append((y, x, octave, scale, v, ev, peaks))
             for (currentAngleIndex, currentAngleMagnitude) in peaks:

@@ -103,13 +103,13 @@ class FeatureMatching:
             (y2, x2) = f2[0:2]
 
             norms = np.linalg.norm(verifiedFeatures[:, 0:2] - (x1, y1), axis = 1)
-            foundNorms = verifiedFeatures[norms < 5.0]
+            foundNorms = verifiedFeatures[norms < 4.0]
             if foundNorms.shape[0] == 0:
                 notFoundCounter += 1
                 debug("Verification: didn't find this feature in verification table")
             else:
                 results = np.linalg.norm(foundNorms[:, 2:4] - (x2, y2), axis=1)
-                verifiedResults = foundNorms[results < 5.0]
+                verifiedResults = foundNorms[results < 4.0]
                 if foundNorms.shape[0] == 1:
                     if verifiedResults.shape[0] == 1:
                         verifiedCounter += 1
@@ -154,4 +154,4 @@ def run():
         fm.drawTopMatches("matches.jpg", amount = 60)
         fm.verify(fileset[4])
 
-run()
+# run()

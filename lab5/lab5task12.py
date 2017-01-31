@@ -23,6 +23,8 @@ ORIENTATION_BIN_ANGLE = 360.0 / ORIENTATION_BINS
 SIGMA_K = np.power(2, 1.0 / SCALES_PER_OCTAVE)
 
 # TODO: Patch during computing orientation should be samples, not pixels
+# TODO: Add some debugging pictures with orientation bins etc.
+# TODO: Add numbering for features
 
 COLORS = {
     'RED': (255, 0, 0),
